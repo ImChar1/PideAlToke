@@ -6,9 +6,9 @@
 
 from fastapi import APIRouter, Depends, status, HTTPException
 from sqlalchemy.orm import Session
-from app.infraestructure.db.session import get_db
+from app.infrastructure.db.session import get_db
 from app.schemas.schema_pedido import CrearPedidoSchema, PedidoResponseSchema
-from app.infraestructure.repositories.pedido_repository import PedidoRepositorySQLAlchemy
+from app.infrastructure.repositories.pedido_repository import PedidoRepositorySQLAlchemy
 from app.domain.services.pedido_service import PedidoService
 
 router = APIRouter(prefix="/pedidos", tags=["Pedidos"])

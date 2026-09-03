@@ -2,7 +2,7 @@
 
 from sqlalchemy import Column, Integer, String, Float, DateTime
 from datetime import datetime
-from app.infraestructure.db.session import Base
+from app.infrastructure.db.session import Base
 from sqlalchemy.sql import func
 
 class PedidoModel(Base):

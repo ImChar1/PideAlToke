@@ -5,7 +5,7 @@ from pydantic_settings import BaseSettings
 
 class Settings(BaseSettings):
     PROJECT_NAME: str = "Microservicio de Pedidos"
-    ENVIROMENT: str = "local"
+    ENVIRONMENT: str = "local"
     DATABASE_URL: str
 
     # Credenciales para validar JWT de Azure AD
