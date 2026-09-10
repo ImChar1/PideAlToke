@@ -15,4 +15,3 @@ class PedidoRepositoryPort(ABC):
     def obtener_por_id(self, pedido_id: int) -> Optional[PedidoModel]:
         """Recupera un pedido por su ID"""
         pass
-    

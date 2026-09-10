@@ -10,7 +10,7 @@ class PedidoRepositorySQLAlchemy(PedidoRepositoryPort):
     def __init__(self, db: Session):
         self.db = db
 
-    def guardar(self, pedido:PedidoModel) -> PedidoModel:
+    def guardar(self, pedido: PedidoModel) -> PedidoModel:
         self.db.add(pedido)
         self.db.commit()
         self.db.refresh(pedido)

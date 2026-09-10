@@ -1,5 +1,9 @@
 # Valida el JWT emitido por Azure AD (IDaaS) antes de autorizar cualquier peticion.
-# Mismo esquema usado en ms-catalogo y ms-inventario: JWKS + firma RS256 + issuer + audience.
+# Cumple lo pedido en la pauta para el BFF: valida firma (JWKS/RS256), issuer, audience
+# y aplica autorizacion por rol (RBAC), respondiendo con codigos de error adecuados.
+#
+# NOTA: replicar/compartir esta logica con ms-pedidos y ms-usuarios para no duplicar
+# la validacion JWT en cada microservicio.
 
 from typing import Optional
 
@@ -16,6 +20,7 @@ _JWKS_CACHE: Optional[dict] = None
 
 
 def _get_jwks() -> dict:
+    """Descarga (y cachea en memoria del proceso) las claves publicas JWKS de Azure AD."""
     global _JWKS_CACHE
     if _JWKS_CACHE is None:
         jwks_url = (
@@ -31,7 +36,12 @@ def _get_jwks() -> dict:
 def validar_jwt(
     credentials: HTTPAuthorizationCredentials = Depends(bearer_scheme),
 ) -> dict:
+    """
+    Valida firma (RS256), issuer, audience y vigencia del token.
+    Devuelve los claims decodificados si es valido; lanza 401 si no lo es.
+    """
     token = credentials.credentials
+
     try:
         jwks = _get_jwks()
         unverified_header = jwt.get_unverified_header(token)
@@ -77,12 +87,19 @@ def validar_jwt(
         )
 
 
-def obtener_token_bearer(
-    credentials: HTTPAuthorizationCredentials = Depends(bearer_scheme),
-) -> str:
+def requerir_rol(rol_esperado: str):
     """
-    Devuelve el token crudo (string) recibido del cliente, para reenviarlo
-    en las llamadas salientes hacia otros microservicios (ej. ms-inventario),
-    propagando la identidad del usuario a lo largo de la cadena de llamadas.
+    Dependencia factory para RBAC: exige que el JWT ya validado contenga el rol/claim
+    esperado (ej. 'ADMIN') antes de dejar pasar la peticion. Usar en endpoints de escritura.
     """
-    return credentials.credentials
+
+    def _verificar(claims: dict = Depends(validar_jwt)) -> dict:
+        roles = claims.get("roles", []) or claims.get("scp", "").split(" ")
+        if rol_esperado not in roles:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail=f"Se requiere el rol '{rol_esperado}' para esta operacion.",
+            )
+        return claims
+
+    return _verificar
