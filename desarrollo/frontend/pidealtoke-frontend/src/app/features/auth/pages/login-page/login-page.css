@@ -1,0 +1,84 @@
+.login-container {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  min-height: 100vh;
+  background-color: #f4f6f9;
+  font-family: system-ui, -apple-system, sans-serif;
+}
+
+.login-card {
+  background: #ffffff;
+  border-radius: 12px;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.08);
+  width: 100%;
+  max-width: 420px;
+  overflow: hidden;
+}
+
+.brand-header {
+  background: #1e293b;
+  color: #ffffff;
+  padding: 2rem;
+  text-align: center;
+}
+
+.brand-header h1 {
+  margin: 0;
+  font-size: 1.8rem;
+}
+
+.brand-header p {
+  margin: 0.5rem 0 0;
+  font-size: 0.9rem;
+  color: #94a3b8;
+}
+
+.login-content {
+  padding: 2rem;
+  text-align: center;
+}
+
+.subtitle {
+  color: #64748b;
+  font-size: 0.95rem;
+  margin-bottom: 2rem;
+}
+
+.btn-microsoft {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  width: 100%;
+  padding: 12px 24px;
+  border: 1px solid #cbd5e1;
+  border-radius: 8px;
+  background-color: #ffffff;
+  color: #1e293b;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background-color 0.2s, border-color 0.2s;
+}
+
+.btn-microsoft:hover {
+  background-color: #f8fafc;
+  border-color: #94a3b8;
+}
+
+.auth-footer {
+  margin-top: 1.5rem;
+  font-size: 0.9rem;
+  color: #64748b;
+}
+
+.link-auth {
+  color: #2563eb;
+  text-decoration: none;
+  font-weight: 600;
+  margin-left: 0.5rem;
+}
+
+.link-auth:hover {
+  text-decoration: underline;
+}

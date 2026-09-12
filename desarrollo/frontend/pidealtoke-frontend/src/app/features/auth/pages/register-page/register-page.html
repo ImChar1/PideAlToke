@@ -1,0 +1,28 @@
+<div class="login-container">
+  <div class="login-card">
+    <div class="brand-header">
+      <h1>PideAlToke</h1>
+      <p>Gestión de Pedidos & Logística</p>
+    </div>
+    
+    <div class="login-content">
+      <h2>Crear una Cuenta</h2>
+      <p class="subtitle">Regístrate con tu correo corporativo o de organización en Azure Entra ID.</p>
+      
+      <button class="btn-microsoft" (click)="onRegister()">
+        <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 23 23">
+          <path fill="#f35325" d="M1 1h10v10H1z"/>
+          <path fill="#81bc06" d="M12 1h10v10H12z"/>
+          <path fill="#05a6f0" d="M1 12h10v10H1z"/>
+          <path fill="#ffba08" d="M12 12h10v10H12z"/>
+        </svg>
+        <span>Registrarse con Microsoft</span>
+      </button>
+
+      <div class="auth-footer">
+        <span>¿Ya tienes una cuenta?</span>
+        <a routerLink="/login" class="link-auth">Iniciar Sesión</a>
+      </div>
+    </div>
+  </div>
+</div>
