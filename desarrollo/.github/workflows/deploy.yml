@@ -1,0 +1,76 @@
+name: Deploy Infrastructure and Applications to AWS
+
+on:
+  push:
+    branches: [ "main" ]
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout del código
+        uses: actions/checkout@v4
+
+      - name: Configurar credenciales de AWS
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-session-token: ${{ secrets.AWS_SESSION_TOKEN }}
+          aws-region: ${{ secrets.AWS_REGION }}
+
+      - name: Autenticar en Amazon ECR
+        id: login-ecr
+        uses: aws-actions/amazon-ecr-login@v2
+
+      - name: Construir y subir imagen Frontend a ECR
+        env:
+          ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
+          ECR_REPOSITORY: ${{ secrets.ECR_FRONTEND_REPO }}
+          IMAGE_TAG: latest
+        run: |
+          docker build -t $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG ./frontend/app-login
+          docker push $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG
+
+      - name: Construir y subir Microservicios Backend a ECR
+        env:
+          ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
+          ECR_REPOSITORY: ${{ secrets.ECR_BACKEND_REPO }}
+        run: |
+          # ms-usuarios
+          docker build -t $ECR_REGISTRY/$ECR_REPOSITORY:ms-usuarios ./backend/ms-usuarios
+          docker push $ECR_REGISTRY/$ECR_REPOSITORY:ms-usuarios
+
+          # ms-catalogo
+          docker build -t $ECR_REGISTRY/$ECR_REPOSITORY:ms-catalogo ./backend/ms-catalogo
+          docker push $ECR_REGISTRY/$ECR_REPOSITORY:ms-catalogo
+
+          # ms-inventario
+          docker build -t $ECR_REGISTRY/$ECR_REPOSITORY:ms-inventario ./backend/ms-inventario
+          docker push $ECR_REGISTRY/$ECR_REPOSITORY:ms-inventario
+
+          # ms-pedidos
+          docker build -t $ECR_REGISTRY/$ECR_REPOSITORY:ms-pedidos ./backend/ms-pedidos
+          docker push $ECR_REGISTRY/$ECR_REPOSITORY:ms-pedidos
+
+      - name: Configurar Terraform
+        uses: hashicorp/setup-terraform@v3
+
+      - name: Inicializar y Aplicar Terraform
+        env:
+          TF_VAR_aws_region: ${{ secrets.AWS_REGION }}
+          TF_VAR_aws_account_id: ${{ secrets.AWS_ACCOUNT_ID }}
+          TF_VAR_vpc_id: ${{ secrets.VPC_ID }}
+          TF_VAR_public_subnet_id: ${{ secrets.PUBLIC_SUBNET_ID }}
+          TF_VAR_private_subnet_id: ${{ secrets.PRIVATE_SUBNET_ID }}
+          TF_VAR_azure_tenant_name: ${{ secrets.AZURE_TENANT_NAME }}
+          TF_VAR_azure_tenant_id: ${{ secrets.AZURE_TENANT_ID }}
+          TF_VAR_azure_client_id: ${{ secrets.AZURE_CLIENT_ID }}
+          TF_VAR_ecr_frontend_repo: ${{ secrets.ECR_FRONTEND_REPO }}
+          TF_VAR_ecr_backend_repo: ${{ secrets.ECR_BACKEND_REPO }}
+          TF_VAR_db_password: ${{ secrets.DB_PASSWORD }}
+          TF_VAR_db_name: ${{ secrets.DB_NAME }}
+        run: |
+          terraform init
+          terraform apply -auto-approve

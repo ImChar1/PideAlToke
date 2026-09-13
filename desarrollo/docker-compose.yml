@@ -1,0 +1,71 @@
+version: '3.8'
+
+services:
+  db:
+    image: mariadb:11.2
+    container_name: pidealtoke-db
+    restart: always
+    environment:
+      MYSQL_ROOT_PASSWORD: rootpassword
+      MYSQL_DATABASE: pidealtoke_db
+    ports:
+      - "3306:3306"
+    volumes:
+      - mariadb_data:/var/lib/mysql
+    healthcheck:
+      test: ["CMD", "healthcheck-sh", "--connect", "--innodb_initialized"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  ms-usuarios:
+    build: ./backend/ms-usuarios
+    ports:
+      - "8001:8080"
+    environment:
+      DATABASE_URL: mysql+pymysql://root:rootpassword@db:3306/pidealtoke_db
+      AZURE_TENANT_ID: ${AZURE_TENANT_ID}
+      AZURE_CLIENT_ID: ${AZURE_CLIENT_ID}
+    depends_on:
+      db:
+        condition: service_healthy
+
+  ms-catalogo:
+    build: ./backend/ms-catalogo
+    ports:
+      - "8002:8080"
+    environment:
+      DATABASE_URL: mysql+pymysql://root:rootpassword@db:3306/pidealtoke_db
+    depends_on:
+      db:
+        condition: service_healthy
+
+  ms-inventario:
+    build: ./backend/ms-inventario
+    ports:
+      - "8003:8080"
+    environment:
+      DATABASE_URL: mysql+pymysql://root:rootpassword@db:3306/pidealtoke_db
+    depends_on:
+      db:
+        condition: service_healthy
+
+  ms-pedidos:
+    build: ./backend/ms-pedidos
+    ports:
+      - "8004:8080"
+    environment:
+      DATABASE_URL: mysql+pymysql://root:rootpassword@db:3306/pidealtoke_db
+    depends_on:
+      db:
+        condition: service_healthy
+
+  frontend:
+    build: ./frontend/app-login
+    ports:
+      - "80:80"
+    depends_on:
+      - ms-usuarios
+
+volumes:
+  mariadb_data:

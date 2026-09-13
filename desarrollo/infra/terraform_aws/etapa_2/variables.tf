@@ -1,30 +1,12 @@
-variable "aws_region" {
-  type = string
-  default = "us-east-1"
-}
-
-# Variables que se llenan con los outputs de la Etapa 1
-variable "vpc_id" {
-  type = string
-}
-
-variable "public_subnet_id" {
-  type = string
-}
-
-variable "private_subnet_id" {
-    type = string
-}
-
-# Variables para Azure Entra ID
-variable "azure_tenant_id" {
-  type = string
-}
-
-variable "azure_client_id" {
-    type = string
-}
-
-variable "azure_tenant_name" {
-    type = string
-}
+variable "aws_region" { type = string }
+variable "aws_account_id" { type = string }
+variable "vpc_id" { type = string }
+variable "public_subnet_id" { type = string }
+variable "private_subnet_id" { type = string }
+variable "azure_tenant_name" { type = string }
+variable "azure_tenant_id" { type = string }
+variable "azure_client_id" { type = string }
+variable "ecr_frontend_repo" { type = string }
+variable "ecr_backend_repo" { type = string }
+variable "db_password" { type = string }
+variable "db_name" { type = string }
