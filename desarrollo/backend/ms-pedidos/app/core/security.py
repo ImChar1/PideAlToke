@@ -1,88 +1,37 @@
-# Valida el JWT emitido por Azure AD (IDaaS) antes de autorizar cualquier peticion.
-# Mismo esquema usado en ms-catalogo y ms-inventario: JWKS + firma RS256 + issuer + audience.
-
-from typing import Optional
-
-import requests
-from fastapi import Depends, HTTPException, status
-from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
-from jose import jwt, JWTError
-
+import jwt
+from jwt import PyJWKClient, ExpiredSignatureError, InvalidTokenError
+from fastapi import HTTPException, Security, status
+from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from app.core.config import settings
 
-bearer_scheme = HTTPBearer()
+security_scheme = HTTPBearer()
 
-_JWKS_CACHE: Optional[dict] = None
+JWKS_URL = f"https://login.microsoftonline.com/{settings.AZURE_TENANT_ID}/discovery/v2.0/keys"
+jwk_client = PyJWKClient(JWKS_URL)
 
-
-def _get_jwks() -> dict:
-    global _JWKS_CACHE
-    if _JWKS_CACHE is None:
-        jwks_url = (
-            f"https://login.microsoftonline.com/"
-            f"{settings.AZURE_TENANT_ID}/discovery/v2.0/keys"
-        )
-        response = requests.get(jwks_url, timeout=5)
-        response.raise_for_status()
-        _JWKS_CACHE = response.json()
-    return _JWKS_CACHE
-
-
-def validar_jwt(
-    credentials: HTTPAuthorizationCredentials = Depends(bearer_scheme),
-) -> dict:
+def validar_jwt(credentials: HTTPAuthorizationCredentials = Security(security_scheme)) -> dict:
     token = credentials.credentials
+    valid_audiences = [settings.AZURE_CLIENT_ID, f"api://{settings.AZURE_CLIENT_ID}"]
+    valid_issuers = [
+        f"https://login.microsoftonline.com/{settings.AZURE_TENANT_ID}/v2.0",
+        f"https://sts.windows.net/{settings.AZURE_TENANT_ID}/"
+    ]
+
     try:
-        jwks = _get_jwks()
-        unverified_header = jwt.get_unverified_header(token)
-
-        rsa_key = next(
-            (
-                {
-                    "kty": key["kty"],
-                    "kid": key["kid"],
-                    "use": key["use"],
-                    "n": key["n"],
-                    "e": key["e"],
-                }
-                for key in jwks.get("keys", [])
-                if key["kid"] == unverified_header.get("kid")
-            ),
-            None,
-        )
-        if rsa_key is None:
-            raise HTTPException(
-                status_code=status.HTTP_401_UNAUTHORIZED,
-                detail="No se encontro una clave JWKS que coincida con el token.",
-            )
-
-        claims = jwt.decode(
+        signing_key = jwk_client.get_signing_key_from_jwt(token)
+        return jwt.decode(
             token,
-            rsa_key,
+            signing_key.key,
             algorithms=["RS256"],
-            audience=settings.AZURE_CLIENT_ID,
-            issuer=f"https://login.microsoftonline.com/{settings.AZURE_TENANT_ID}/v2.0",
+            audience=valid_audiences,
+            issuer=valid_issuers
         )
-        return claims
+    except ExpiredSignatureError:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="El token ha expirado.")
+    except InvalidTokenError as e:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail=f"Token inválido: {str(e)}")
+    except Exception:
+        raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail="Error al validar el token contra Azure AD.")
 
-    except JWTError as e:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail=f"Token invalido o expirado: {str(e)}",
-        )
-    except requests.RequestException:
-        raise HTTPException(
-            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-            detail="No fue posible validar el token contra el IDaaS (Azure AD).",
-        )
-
-
-def obtener_token_bearer(
-    credentials: HTTPAuthorizationCredentials = Depends(bearer_scheme),
-) -> str:
-    """
-    Devuelve el token crudo (string) recibido del cliente, para reenviarlo
-    en las llamadas salientes hacia otros microservicios (ej. ms-inventario),
-    propagando la identidad del usuario a lo largo de la cadena de llamadas.
-    """
+def obtener_token_bearer(credentials: HTTPAuthorizationCredentials = Security(security_scheme)) -> str:
     return credentials.credentials

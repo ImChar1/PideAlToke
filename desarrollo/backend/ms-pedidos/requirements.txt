@@ -6,3 +6,4 @@ cryptography
 PyJWT[crypto]
 pydantic-settings
 httpx
+requests

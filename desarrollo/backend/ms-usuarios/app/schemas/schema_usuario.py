@@ -1,13 +1,12 @@
-from pydantic import BaseModel, EmailStr
+from pydantic import BaseModel, EmailStr, ConfigDict
 from datetime import datetime
 
 class UsuarioBaseSchema(BaseModel):
     email: EmailStr
-    nombre_completo: str
-    rol: str = "CLIENTE" # Para control de roles
+    rol: str = "CLIENTE"
 
 class CrearUsuarioSchema(UsuarioBaseSchema):
-    azure_oid: str # ID del usuario proviniente de Azure AD
+    azure_oid: str
 
 class UsuarioResponseSchema(UsuarioBaseSchema):
     id: int
@@ -15,5 +14,5 @@ class UsuarioResponseSchema(UsuarioBaseSchema):
     activo: bool
     fecha_creacion: datetime
 
-class Config:
-    from_attributes = True
+    # Permite mapear directamente objetos SQLAlchemy a JSON
+    model_config = ConfigDict(from_attributes=True)
