@@ -8,7 +8,7 @@ output "backend_private_ip" {
   value = aws_instance.ec2_backend.private_ip
 }
 
-output "db_private_id" {
+output "db_private_ip" {
   description = "IP Privada de MariaDB para conectar el Backend"
   value = aws_instance.ec2_db.private_id
 }

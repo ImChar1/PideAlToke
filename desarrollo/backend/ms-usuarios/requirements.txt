@@ -1,1 +1,8 @@
-pip install "PyJWT[crypto]" fastapi uvicorn sqlalchemy pydantic-settings
+fastapi
+uvicorn
+sqlalchemy
+pymysql
+cryptography
+PyJWT[crypto]
+pydantic-settings
+email-validator

@@ -6,3 +6,5 @@ pydantic-settings
 python-dotenv
 python-jose[cryptography]
 requests
+PyJWT[crypto]
+pymysql

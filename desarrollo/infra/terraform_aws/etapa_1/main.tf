@@ -15,14 +15,14 @@ provider "aws" {
 
 # VPC
 resource "aws_vpc" "main" {
-  cidr_block = var.vpc_cdir
+  cidr_block = var.vpc_cidr
   enable_dns_hostnames = true
   tags = { Name = "vpc-pidealtoke"}
 }
 
 # Internet Gateway para tráfico público
-resource "aws_internet_getway" "gw" {
-    vpc_id = aws_apc.main.id
+resource "aws_internet_gateway" "gw" {
+    vpc_id = aws_vpc.main.id
 }
 
 # Subred Pública para el frontend
@@ -37,7 +37,7 @@ resource "aws_subnet" "public" {
 # Subred Privada para el backend y la BD
 resource "aws_subnet" "private" {
   vpc_id = aws_vpc.main.id
-  cidr_block = var.private_subnet_cdir
+  cidr_block = var.private_subnet_cidr
   availability_zone = "${var.aws_region}a"
   tags = { Name = "private-subnet" }
 }
