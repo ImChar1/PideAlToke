@@ -6,7 +6,7 @@ from sqlalchemy.orm import Session
 
 from app.infrastructure.db.session import get_db
 from app.schemas.schema_pedido import CrearPedidoSchema, PedidoResponseSchema
-from app.infrastructure.repositories.pedido_repository import PedidoRepositorySQLAlchemy
+from app.infrastructure.repositories.pedido_repository import PedidoRepository
 from app.infrastructure.clients.inventario_client import InventarioHttpClient
 from app.domain.services.pedido_service import PedidoService
 from app.domain.ports.inventario_client_port import (
@@ -28,7 +28,7 @@ def crear_pedido(
     # Inyección manual de dependencias siguiendo la arquitectura hexagonal.
     # El token del usuario se reenvia al InventarioHttpClient para que ms-inventario
     # pueda validar el JWT igual que en cualquier otra peticion (propagacion de identidad).
-    repository = PedidoRepositorySQLAlchemy(db)
+    repository = PedidoRepository(db)
     inventario_client = InventarioHttpClient(token=token)
     service = PedidoService(repository, inventario_client)
 
@@ -51,7 +51,7 @@ def obtener_pedido(
     db: Session = Depends(get_db),
     _claims: dict = Depends(validar_jwt),
 ):
-    repository = PedidoRepositorySQLAlchemy(db)
+    repository = PedidoRepository(db)
     pedido = repository.obtener_por_id(pedido_id)
     if not pedido:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Pedido no encontrado")

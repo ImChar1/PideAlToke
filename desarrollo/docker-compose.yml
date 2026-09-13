@@ -6,24 +6,27 @@ services:
     container_name: pidealtoke-db
     restart: always
     environment:
-      MYSQL_ROOT_PASSWORD: rootpassword
-      MYSQL_DATABASE: pidealtoke_db
+      MARIADB_ROOT_PASSWORD: ${DB_ROOT_PASSWORD}
+      MARIADB_DATABASE: ${DB_NAME_USUARIOS}
     ports:
-      - "3306:3306"
+      - "${PORT_DB}:3306"
     volumes:
       - mariadb_data:/var/lib/mysql
+      - ./init-db:/docker-entrypoint-initdb.d
     healthcheck:
-      test: ["CMD", "healthcheck-sh", "--connect", "--innodb_initialized"]
+      test: ["CMD-SHELL", "mariadb-admin ping -h 127.0.0.1 -u root -p$MARIADB_ROOT_PASSWORD || exit 1"]
       interval: 5s
       timeout: 5s
-      retries: 5
+      retries: 10
+      start_period: 20s
 
   ms-usuarios:
     build: ./backend/ms-usuarios
+    container_name: ms-usuarios
     ports:
-      - "8001:8080"
+      - "${PORT_MS_USUARIOS}:8000"
     environment:
-      DATABASE_URL: mysql+pymysql://root:rootpassword@db:3306/pidealtoke_db
+      DATABASE_URL: mysql+pymysql://root:${DB_ROOT_PASSWORD}@${DB_HOST}:${DB_PORT}/${DB_NAME_USUARIOS}
       AZURE_TENANT_ID: ${AZURE_TENANT_ID}
       AZURE_CLIENT_ID: ${AZURE_CLIENT_ID}
     depends_on:
@@ -32,38 +35,51 @@ services:
 
   ms-catalogo:
     build: ./backend/ms-catalogo
+    container_name: ms-catalogo
     ports:
-      - "8002:8080"
+      - "${PORT_MS_CATALOGO}:8000"
     environment:
-      DATABASE_URL: mysql+pymysql://root:rootpassword@db:3306/pidealtoke_db
+      DATABASE_URL: mysql+pymysql://root:${DB_ROOT_PASSWORD}@${DB_HOST}:${DB_PORT}/${DB_NAME_CATALOGO}
+      AZURE_TENANT_ID: ${AZURE_TENANT_ID}
+      AZURE_CLIENT_ID: ${AZURE_CLIENT_ID}
     depends_on:
       db:
         condition: service_healthy
 
   ms-inventario:
     build: ./backend/ms-inventario
+    container_name: ms-inventario
     ports:
-      - "8003:8080"
+      - "${PORT_MS_INVENTARIO}:8000"
     environment:
-      DATABASE_URL: mysql+pymysql://root:rootpassword@db:3306/pidealtoke_db
+      DATABASE_URL: mysql+pymysql://root:${DB_ROOT_PASSWORD}@${DB_HOST}:${DB_PORT}/${DB_NAME_INVENTARIO}
+      AZURE_TENANT_ID: ${AZURE_TENANT_ID}
+      AZURE_CLIENT_ID: ${AZURE_CLIENT_ID}
     depends_on:
       db:
         condition: service_healthy
 
   ms-pedidos:
     build: ./backend/ms-pedidos
+    container_name: ms-pedidos
     ports:
-      - "8004:8080"
+      - "${PORT_MS_PEDIDOS}:8000"
     environment:
-      DATABASE_URL: mysql+pymysql://root:rootpassword@db:3306/pidealtoke_db
+      DATABASE_URL: mysql+pymysql://root:${DB_ROOT_PASSWORD}@${DB_HOST}:${DB_PORT}/${DB_NAME_PEDIDOS}
+      AZURE_TENANT_ID: ${AZURE_TENANT_ID}
+      AZURE_CLIENT_ID: ${AZURE_CLIENT_ID}
+      INVENTARIO_SERVICE_URL: http://ms-inventario:8000
     depends_on:
       db:
         condition: service_healthy
+      ms-inventario:
+        condition: service_started
 
   frontend:
     build: ./frontend/app-login
+    container_name: app-frontend
     ports:
-      - "80:80"
+      - "${PORT_FRONTEND}:80"
     depends_on:
       - ms-usuarios
 

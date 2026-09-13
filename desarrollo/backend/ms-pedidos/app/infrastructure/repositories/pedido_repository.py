@@ -1,12 +1,9 @@
-#Implementación de acceso a datos con SQLAlchemy
-
-from typing import Optional
+from sqlalchemy import select
 from sqlalchemy.orm import Session
 from app.domain.ports.pedido_repository_port import PedidoRepositoryPort
 from app.domain.models.pedido import PedidoModel
 
-class PedidoRepositorySQLAlchemy(PedidoRepositoryPort):
-
+class PedidoRepository(PedidoRepositoryPort):
     def __init__(self, db: Session):
         self.db = db
 
@@ -16,5 +13,6 @@ class PedidoRepositorySQLAlchemy(PedidoRepositoryPort):
         self.db.refresh(pedido)
         return pedido
 
-    def obtener_por_id(self, pedido_id: int) -> Optional[PedidoModel]:
-        return self.db.query(PedidoModel).filter(PedidoModel.id == pedido_id).first()
+    def obtener_por_id(self, pedido_id: int) -> PedidoModel | None:
+        stmt = select(PedidoModel).where(PedidoModel.id == pedido_id)
+        return self.db.scalars(stmt).first()
