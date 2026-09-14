@@ -1,59 +1,65 @@
-import { Component, inject, OnInit } from '@angular/core';
+import { Component, inject, signal, computed, OnInit } from '@angular/core';
 import { CommonModule } from '@angular/common';
+import { RouterLink } from '@angular/router';
 import { AuthService } from '../../core/auth/auth.service';
 import { UserService } from '../../core/usuarios/user.service';
+import { CatalogoService } from '../catalogo/services/catalogo.service';
+import { InventarioService } from '../inventario/services/inventario.service';
+
+interface PerfilUsuario {
+  email: string;
+  rol: string;
+  activo: boolean;
+  fecha_creacion: string;
+}
 
 @Component({
   selector: 'app-dashboard',
   standalone: true,
-  imports: [CommonModule],
-  template: `
-    <div style="padding: 2rem;">
-      <h2>Bienvenido a PideAlToke</h2>
-      
-      <!-- 1. Datos del Token guardados localmente por Azure -->
-      <div *ngIf="user">
-        <p><strong>Nombre (Azure):</strong> {{ user.name }}</p>
-        <p><strong>Correo (Azure):</strong> {{ user.username }}</p>
-      </div>
-
-      <hr style="margin: 1.5rem 0;" />
-
-      <!-- 2. Datos devueltos por el Microservicio Docker en el puerto 8001 -->
-      <h3>Respuesta de la API (Docker :8001):</h3>
-      <div *ngIf="backendProfile; else loading">
-        <pre>{{ backendProfile | json }}</pre>
-      </div>
-      <ng-template #loading>
-        <p>Consultando /api/v1/users/me en el microservicio...</p>
-      </ng-template>
-
-      <button (click)="onLogout()" style="margin-top: 1rem;">Cerrar Sesión</button>
-    </div>
-  `
+  imports: [CommonModule, RouterLink],
+  templateUrl: './dashboard.component.html',
+  styleUrl: './dashboard.component.css'
 })
 export class DashboardComponent implements OnInit {
   private authService = inject(AuthService);
   private userService = inject(UserService);
+  private catalogoService = inject(CatalogoService);
+  private inventarioService = inject(InventarioService);
 
-  user: any = null;
-  backendProfile: any = null;
+  nombre = signal<string>('');
+  perfil = signal<PerfilUsuario | null>(null);
+
+  // El rol mostrado en el Dashboard viene siempre del backend (ms-usuarios),
+  // que a su vez lo sincroniza en cada /me con el App Role de Azure AD
+  // ("ADMIN" o "CLIENTE"). No se lee del token directamente aquí para que
+  // el badge y los datos del perfil sean siempre consistentes entre sí.
+  esAdmin = computed(() => this.perfil()?.rol === 'ADMIN');
+
+  totalProductos = signal<number | null>(null);
+  totalBajoStock = signal<number | null>(null);
 
   ngOnInit(): void {
-    // Lee la sesión activa en el navegador
-    this.user = this.authService.getAccount();
+    const cuenta = this.authService.getAccount();
+    this.nombre.set(cuenta?.name || 'Usuario');
 
-    // Dispara la llamada HTTP que intercepta el JWT
     this.userService.getUserProfile().subscribe({
-      next: (data) => {
-        console.log('Respuesta recibida del backend:', data);
-        this.backendProfile = data;
-      },
-      error: (err) => console.error('Error de autenticación con el backend:', err)
+      next: (data) => this.perfil.set(data),
+      error: (err) => console.error('No se pudo obtener el perfil del usuario:', err)
     });
-  }
 
-  onLogout(): void {
-    this.authService.logout();
+    this.catalogoService.getProducts().subscribe({
+      next: (productos) => this.totalProductos.set(productos.length),
+      error: () => this.totalProductos.set(null)
+    });
+
+    this.inventarioService.getInventario().subscribe({
+      next: (items) => {
+        const bajoStock = items.filter(
+          i => i.umbral_minimo != null && i.cantidad_disponible <= i.umbral_minimo
+        ).length;
+        this.totalBajoStock.set(bajoStock);
+      },
+      error: () => this.totalBajoStock.set(null)
+    });
   }
 }

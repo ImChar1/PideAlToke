@@ -1,14 +1,35 @@
-<div class="login-container">
-  <div class="login-card">
-    <div class="brand-header">
-      <h1>PideAlToke</h1>
-      <p>Gestión de Pedidos & Logística</p>
+<div class="auth-shell">
+
+  <section class="auth-showcase">
+    <div class="showcase-content">
+      <div class="showcase-badge">
+        <span class="brand-mark">P</span>
+        <span>PideAlToke</span>
+      </div>
+      <h1>Pide, gestiona y entrega.<br>Todo en un solo lugar.</h1>
+      <p>La plataforma cloud native que conecta catálogo, inventario y pedidos en tiempo real.</p>
+
+      <div class="showcase-stats">
+        <div>
+          <strong>+5</strong>
+          <span>Microservicios activos</span>
+        </div>
+        <div>
+          <strong>100%</strong>
+          <span>Autenticación segura</span>
+        </div>
+      </div>
     </div>
-    
-    <div class="login-content">
+
+    <div class="showcase-blob showcase-blob--1"></div>
+    <div class="showcase-blob showcase-blob--2"></div>
+  </section>
+
+  <section class="auth-panel">
+    <div class="auth-card">
       <h2>Iniciar Sesión</h2>
       <p class="subtitle">Autentícate con tu cuenta corporativa para ingresar al sistema.</p>
-      
+
       <button class="btn-microsoft" (click)="onLogin()">
         <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 23 23">
           <path fill="#f35325" d="M1 1h10v10H1z"/>
@@ -24,5 +45,6 @@
         <a routerLink="/register" class="link-auth">Regístrate</a>
       </div>
     </div>
-  </div>
+  </section>
+
 </div>

@@ -1,49 +1,145 @@
-<div class="inventario-container">
+<div class="inventario-page">
+
   <div class="header">
-    <h2>Control de Inventario</h2>
-    <span class="badge">{{ inventario.length }} ítems monitoreados</span>
+    <div class="header-title">
+      <h2>Control de Inventario</h2>
+      <span class="badge">{{ productos().length }} productos</span>
+    </div>
+
+    <div class="header-actions">
+      @if (totalBajoStock() > 0) {
+        <button class="chip-alerta" [class.chip-alerta--active]="soloBajoStock()" (click)="toggleFiltro()">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M12 9v4"/><path d="M12 17h.01"/>
+            <path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0Z"/>
+          </svg>
+          {{ totalBajoStock() }} con stock bajo
+        </button>
+      }
+      <button class="btn-nuevo" (click)="toggleFormulario()">
+        {{ mostrarFormulario() ? 'Cancelar' : '+ Nuevo producto' }}
+      </button>
+    </div>
   </div>
 
-  @if (loading) {
-    <div class="state-box">Cargando niveles de stock...</div>
-  } @else if (error) {
-    <div class="state-box error">{{ error }}</div>
+  @if (!esAdmin) {
+    <div class="aviso-rol">
+      Tu cuenta no tiene el rol <strong>ADMIN</strong> asignado en Azure AD. Podrás ver el inventario,
+      pero crear o eliminar productos requerirá ese rol.
+    </div>
+  }
+
+  @if (mostrarFormulario()) {
+    <div class="form-card">
+      <h3>Nuevo producto</h3>
+      <p class="form-hint">Esto crea el producto en el catálogo y su stock inicial en inventario.</p>
+
+      <div class="form-grid">
+        <label>
+          SKU *
+          <input type="text" [(ngModel)]="form.sku" placeholder="PROD-XXX-001" />
+        </label>
+        <label>
+          Nombre *
+          <input type="text" [(ngModel)]="form.nombre" placeholder="Nombre del producto" />
+        </label>
+        <label class="span-2">
+          Descripción
+          <input type="text" [(ngModel)]="form.descripcion" placeholder="Descripción breve" />
+        </label>
+        <label>
+          Precio (CLP) *
+          <input type="number" [(ngModel)]="form.precio" min="1" placeholder="0" />
+        </label>
+        <label>
+          Categoría
+          <input type="text" [(ngModel)]="form.categoria" placeholder="Ej: Bebidas" />
+        </label>
+        <label>
+          Stock inicial
+          <input type="number" [(ngModel)]="form.cantidad_disponible" min="0" placeholder="0" />
+        </label>
+        <label>
+          Umbral mínimo
+          <input type="number" [(ngModel)]="form.umbral_minimo" min="0" placeholder="Opcional" />
+        </label>
+        <label class="span-2">
+          URL de imagen
+          <input type="text" [(ngModel)]="form.imagen_url" placeholder="https://..." />
+        </label>
+      </div>
+
+      @if (errorFormulario()) {
+        <p class="form-error">{{ errorFormulario() }}</p>
+      }
+
+      <button class="btn-guardar" [disabled]="guardando()" (click)="guardarProducto()">
+        {{ guardando() ? 'Guardando…' : 'Guardar producto' }}
+      </button>
+    </div>
+  }
+
+  @if (loading()) {
+    <div class="state-box">Cargando niveles de stock…</div>
+  } @else if (error()) {
+    <div class="state-box error">{{ error() }}</div>
   } @else {
-    <div class="table-responsive">
+    <div class="table-card">
       <table class="inventario-table">
         <thead>
           <tr>
-            <th>ID</th>
             <th>SKU</th>
+            <th>Producto</th>
+            <th>Categoría</th>
+            <th>Precio</th>
             <th>Disponible</th>
             <th>Reservado</th>
-            <th>Umbral Mínimo</th>
+            <th>Umbral mínimo</th>
             <th>Estado</th>
+            <th></th>
           </tr>
         </thead>
         <tbody>
-          @for (item of inventario; track item.id) {
-            <tr>
-              <td>#{{ item.id }}</td>
+          @for (item of itemsFiltrados(); track item.productoId) {
+            <tr [class.row-alerta]="esBajoStock(item)" [class.row-inactiva]="!item.activo">
               <td class="sku-cell">{{ item.sku }}</td>
+              <td>{{ item.nombre }}</td>
+              <td>{{ item.categoria || '—' }}</td>
+              <td>{{ item.precio | currency:'CLP':'symbol-narrow':'1.0-0' }}</td>
               <td class="font-bold">{{ item.cantidad_disponible }}</td>
               <td>{{ item.cantidad_reservada }}</td>
               <td>{{ item.umbral_minimo ?? 'Sin límite' }}</td>
               <td>
-                <span 
-                  class="status-pill" 
-                  [class.low-stock]="item.umbral_minimo != null && item.cantidad_disponible <= item.umbral_minimo">
-                  {{ (item.umbral_minimo != null && item.cantidad_disponible <= item.umbral_minimo) ? 'Bajo Stock' : 'Disponible' }}
-                </span>
+                @if (!item.activo) {
+                  <span class="status-pill inactive">Inactivo</span>
+                } @else {
+                  <span class="status-pill" [class.low-stock]="esBajoStock(item)">
+                    {{ esBajoStock(item) ? 'Bajo Stock' : 'Disponible' }}
+                  </span>
+                }
+              </td>
+              <td>
+                @if (item.activo) {
+                  <button
+                    class="btn-eliminar"
+                    [disabled]="eliminandoId() === item.productoId"
+                    (click)="eliminarProducto(item)"
+                  >
+                    {{ eliminandoId() === item.productoId ? '…' : 'Eliminar' }}
+                  </button>
+                }
               </td>
             </tr>
           } @empty {
             <tr>
-              <td colspan="6" class="text-center">No hay registros de inventario.</td>
+              <td colspan="9" class="text-center">
+                {{ soloBajoStock() ? 'No hay productos con stock bajo 🎉' : 'No hay productos registrados.' }}
+              </td>
             </tr>
           }
         </tbody>
       </table>
     </div>
   }
+
 </div>

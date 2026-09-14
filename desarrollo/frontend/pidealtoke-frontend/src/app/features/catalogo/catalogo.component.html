@@ -1,30 +1,99 @@
-<div class="catalogo-container">
-  <div class="catalogo-header">
-    <h2>Catálogo de Productos</h2>
-    <span class="badge">{{ productos.length }} disponibles</span>
+<div class="catalogo-page">
+
+  <div class="catalogo-topbar">
+    <div class="catalogo-title">
+      <h2>Catálogo de Productos</h2>
+      <span class="badge">{{ productosFiltrados().length }} disponibles</span>
+    </div>
+
+    <div class="catalogo-controls">
+      <div class="search-box">
+        <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="#9AA0AC" stroke-width="2">
+          <circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/>
+        </svg>
+        <input
+          type="text"
+          placeholder="Buscar producto..."
+          [value]="busqueda()"
+          (input)="busqueda.set($any($event.target).value)"
+        />
+      </div>
+
+      <a routerLink="/pedidos" class="cart-link">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#FFFFFF" stroke-width="2">
+          <circle cx="9" cy="21" r="1"/><circle cx="20" cy="21" r="1"/>
+          <path d="M1 1h4l2.68 13.39a2 2 0 0 0 2 1.61h9.72a2 2 0 0 0 2-1.61L23 6H6"/>
+        </svg>
+        <span>Ver pedido</span>
+        @if (cartCount() > 0) {
+          <span class="cart-count">{{ cartCount() }}</span>
+        }
+      </a>
+    </div>
   </div>
 
-  @if (loading) {
+  @if (categorias().length > 0) {
+    <div class="chips-row">
+      <button class="chip" [class.chip--active]="categoriaActiva() === null" (click)="filtrarPorCategoria(null)">
+        Todas
+      </button>
+      @for (cat of categorias(); track cat) {
+        <button class="chip" [class.chip--active]="categoriaActiva() === cat" (click)="filtrarPorCategoria(cat)">
+          {{ cat }}
+        </button>
+      }
+    </div>
+  }
+
+  @if (loading()) {
     <div class="state-container">
       <div class="spinner"></div>
-      <p>Cargando catálogo desde el microservicio (:8002)...</p>
+      <p>Cargando catálogo…</p>
     </div>
-  } @else if (error) {
+  } @else if (error()) {
     <div class="state-container error">
-      <p class="error-msg">{{ error }}</p>
+      <p class="error-msg">{{ error() }}</p>
     </div>
   } @else {
     <div class="product-grid">
-      @for (prod of productos; track prod.id) {
-        <app-product-card 
-          [product]="prod" 
-          (addToCart)="onAddToCart($event)">
-        </app-product-card>
+      @for (prod of productosFiltrados(); track prod.id) {
+        <article class="product-card">
+          <div class="card-media">
+            @if (prod.imagen_url) {
+              <img [src]="prod.imagen_url" [alt]="prod.nombre" />
+            } @else {
+              <span class="card-media-letter">{{ prod.nombre.charAt(0) }}</span>
+            }
+            @if (prod.categoria) {
+              <span class="card-tag">{{ prod.categoria }}</span>
+            }
+          </div>
+
+          <div class="card-body">
+            <h3>{{ prod.nombre }}</h3>
+            <p class="description">{{ prod.descripcion }}</p>
+          </div>
+
+          <div class="card-footer">
+            <span class="price">{{ prod.precio | currency:'CLP':'symbol-narrow':'1.0-0' }}</span>
+            <button class="btn-cta" (click)="onAddToCart(prod)">Agregar al Pedido</button>
+          </div>
+        </article>
       } @empty {
         <div class="state-container">
-          <p>No se encontraron productos registrados en la base de datos.</p>
+          <p>No se encontraron productos que coincidan con tu búsqueda.</p>
         </div>
       }
     </div>
   }
+
+  @if (ultimoAgregado(); as nombre) {
+    <div class="toast">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#FFFFFF" stroke-width="2.5">
+        <path d="M20 6 9 17l-5-5"/>
+      </svg>
+      <span><strong>{{ nombre }}</strong> se agregó a tu pedido</span>
+    </div>
+  }
+
 </div>
