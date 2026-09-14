@@ -25,7 +25,7 @@ data "aws_ami" "amazon_linux_2023" {
 # 1. SECURITY GROUPS
 
 resource "aws_security_group" "sg_frontend" {
-  name   = "frontend-sg"
+  name_prefix   = "frontend-sg"
   vpc_id = var.vpc_id
 
   ingress {
@@ -51,7 +51,7 @@ resource "aws_security_group" "sg_frontend" {
 }
 
 resource "aws_security_group" "sg_backend" {
-  name   = "backend-sg"
+  name_prefix   = "backend-sg"
   vpc_id = var.vpc_id
 
   ingress {
@@ -70,7 +70,7 @@ resource "aws_security_group" "sg_backend" {
 }
 
 resource "aws_security_group" "sg_db" {
-  name   = "mariadb-sg"
+  name_prefix   = "mariadb-sg"
   vpc_id = var.vpc_id
 
   ingress {
