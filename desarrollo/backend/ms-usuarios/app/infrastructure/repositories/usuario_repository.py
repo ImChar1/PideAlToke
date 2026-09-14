@@ -18,3 +18,10 @@ class UsuarioRepository(UsuarioRepositoryPort):
         self.db.commit()
         self.db.refresh(db_usuario)
         return db_usuario
+
+    def actualizar_rol(self, usuario: UsuarioModel, nuevo_rol: str) -> UsuarioModel:
+        usuario.rol = nuevo_rol
+        self.db.add(usuario)
+        self.db.commit()
+        self.db.refresh(usuario)
+        return usuario

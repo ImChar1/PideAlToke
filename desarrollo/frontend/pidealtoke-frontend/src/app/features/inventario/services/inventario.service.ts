@@ -1,7 +1,7 @@
 import { Injectable, inject } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
 import { Observable } from 'rxjs';
-import { ItemInventario } from '../models/inventario.model';
+import { CrearInventarioPayload, ItemInventario } from '../models/inventario.model';
 
 @Injectable({
   providedIn: 'root'
@@ -13,5 +13,10 @@ export class InventarioService {
 
   getInventario(): Observable<ItemInventario[]> {
     return this.http.get<ItemInventario[]>(this.apiUrl);
+  }
+
+  // Da de alta el registro de stock para un SKU nuevo. Requiere rol ADMIN en el JWT.
+  crearInventario(payload: CrearInventarioPayload): Observable<ItemInventario> {
+    return this.http.post<ItemInventario>(this.apiUrl, payload);
   }
 }

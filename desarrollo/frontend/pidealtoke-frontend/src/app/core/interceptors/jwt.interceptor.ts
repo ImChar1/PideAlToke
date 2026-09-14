@@ -6,7 +6,12 @@ import { environment } from '../../../environments/environment';
 
 export const jwtInterceptor: HttpInterceptorFn = (req, next) => {
   const msalService = inject(MsalService);
-  const account = msalService.instance.getAllAccounts()[0];
+  // OJO: usar siempre la cuenta activa (la del último login), no getAllAccounts()[0].
+  // Si quedan varias cuentas en el cache de localStorage (de logins anteriores sin
+  // cerrar sesión del todo), getAllAccounts()[0] puede devolver una cuenta vieja y
+  // el token adjunto sería el de esa cuenta, no el de la sesión con la que estás
+  // trabajando ahora mismo (esto rompe silenciosamente los permisos de ADMIN).
+  const account = msalService.instance.getActiveAccount() ?? msalService.instance.getAllAccounts()[0];
 
   // Evalúa si la llamada va hacia el API Gateway (producción en AWS) 
   // O hacia cualquier microservicio local en Docker (puertos 8001, 8002, 8003, 8004, etc.)

@@ -1,16 +1,307 @@
-.inventario-container { padding: 1rem 0; }
-.header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.5rem; }
-.header h2 { font-size: 1.5rem; font-weight: 700; color: #1f2937; margin: 0; }
-.badge { background: #e0e7ff; color: #4338ca; padding: 0.25rem 0.75rem; border-radius: 9999px; font-size: 0.85rem; font-weight: 600; }
+.inventario-page {
+  max-width: 1100px;
+  margin: 0 auto;
+}
 
-.table-responsive { overflow-x: auto; background: white; border-radius: 8px; border: 1px solid #e5e7eb; }
-.inventario-table { width: 100%; border-collapse: collapse; text-align: left; }
-.inventario-table th { background: #f9fafb; padding: 0.75rem 1rem; border-bottom: 1px solid #e5e7eb; color: #4b5563; font-size: 0.85rem; }
-.inventario-table td { padding: 0.85rem 1rem; border-bottom: 1px solid #f3f4f6; font-size: 0.9rem; }
-.sku-cell { font-family: monospace; font-weight: 600; color: #374151; }
+.header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 1rem;
+  margin-bottom: 1.5rem;
+}
 
-.status-pill { padding: 0.25rem 0.5rem; border-radius: 4px; font-size: 0.75rem; font-weight: 600; background: #d1fae5; color: #065f46; }
-.status-pill.low-stock { background: #fee2e2; color: #991b1b; }
+.header-title {
+  display: flex;
+  align-items: center;
+  gap: 0.85rem;
+}
 
-.state-box { padding: 2rem; text-align: center; background: #f9fafb; border-radius: 8px; border: 1px dashed #d1d5db; color: #6b7280; }
-.state-box.error { background: #fef2f2; border-color: #fca5a5; color: #dc2626; }
+.header-title h2 {
+  font-size: 1.5rem;
+  font-weight: 700;
+  color: #1A1A1A;
+  margin: 0;
+}
+
+.badge {
+  background: #FFF1E8;
+  color: #E85A2A;
+  padding: 0.28rem 0.8rem;
+  border-radius: 9999px;
+  font-size: 0.85rem;
+  font-weight: 700;
+}
+
+.chip-alerta {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  background: #FFFFFF;
+  border: 1px solid #F5B700;
+  color: #9A6B00;
+  font-weight: 700;
+  font-size: 0.85rem;
+  padding: 0.5rem 1rem;
+  border-radius: 9999px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.chip-alerta--active {
+  background: #F5B700;
+  color: #1A1A1A;
+}
+
+.table-card {
+  background: #FFFFFF;
+  border-radius: 14px;
+  border: 1px solid #ECEDF0;
+  overflow: hidden;
+}
+
+.inventario-table {
+  width: 100%;
+  border-collapse: collapse;
+  text-align: left;
+}
+
+.inventario-table th {
+  background: #F8F9FA;
+  padding: 0.85rem 1.1rem;
+  border-bottom: 1px solid #ECEDF0;
+  color: #4A4A4A;
+  font-size: 0.78rem;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  font-weight: 700;
+}
+
+.inventario-table td {
+  padding: 0.95rem 1.1rem;
+  border-bottom: 1px solid #F3F4F6;
+  font-size: 0.9rem;
+  color: #1A1A1A;
+}
+
+.inventario-table tbody tr:last-child td {
+  border-bottom: none;
+}
+
+.inventario-table tbody tr:hover {
+  background: #FAFAFB;
+}
+
+.row-alerta {
+  box-shadow: inset 3px 0 0 #E63946;
+}
+
+.sku-cell {
+  font-family: 'Courier New', monospace;
+  font-weight: 700;
+  color: #4A4A4A;
+}
+
+.font-bold {
+  font-weight: 800;
+}
+
+.barra-cell {
+  min-width: 130px;
+}
+
+.barra-track {
+  width: 100%;
+  height: 8px;
+  background: #F1F2F4;
+  border-radius: 9999px;
+  overflow: hidden;
+}
+
+.barra-fill {
+  height: 100%;
+  background: #2F9E44;
+  border-radius: 9999px;
+  transition: width 0.3s ease;
+}
+
+.barra-fill--alerta {
+  background: #E63946;
+}
+
+.status-pill {
+  display: inline-block;
+  padding: 0.3rem 0.65rem;
+  border-radius: 9999px;
+  font-size: 0.75rem;
+  font-weight: 700;
+  background: #E6F4EA;
+  color: #2F9E44;
+}
+
+.status-pill.low-stock {
+  background: #FDECEC;
+  color: #E63946;
+}
+
+.state-box {
+  padding: 2.5rem;
+  text-align: center;
+  background: #F8F9FA;
+  border-radius: 12px;
+  border: 1px dashed #D1D5DB;
+  color: #4A4A4A;
+}
+
+.state-box.error {
+  background: #FDECEC;
+  border-color: #F5B8BC;
+  color: #B3261E;
+}
+
+.text-center {
+  text-align: center;
+  color: #9AA0AC;
+  padding: 2rem !important;
+}
+
+.header-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  flex-wrap: wrap;
+}
+
+.btn-nuevo {
+  background: #E85A2A;
+  color: #FFFFFF;
+  border: none;
+  font-weight: 700;
+  font-size: 0.85rem;
+  padding: 0.55rem 1.1rem;
+  border-radius: 9999px;
+  cursor: pointer;
+  transition: opacity 0.15s ease;
+}
+
+.btn-nuevo:hover {
+  opacity: 0.9;
+}
+
+.aviso-rol {
+  background: #FFF8E6;
+  border: 1px solid #F5B700;
+  color: #7A5A00;
+  padding: 0.75rem 1rem;
+  border-radius: 10px;
+  font-size: 0.85rem;
+  margin-bottom: 1.25rem;
+}
+
+.form-card {
+  background: #FFFFFF;
+  border: 1px solid #ECEDF0;
+  border-radius: 14px;
+  padding: 1.25rem 1.5rem;
+  margin-bottom: 1.5rem;
+}
+
+.form-card h3 {
+  margin: 0 0 0.2rem;
+  font-size: 1.05rem;
+  color: #1A1A1A;
+}
+
+.form-hint {
+  margin: 0 0 1rem;
+  color: #6B7280;
+  font-size: 0.82rem;
+}
+
+.form-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 0.85rem 1.25rem;
+}
+
+.form-grid label {
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+  font-size: 0.8rem;
+  font-weight: 700;
+  color: #4A4A4A;
+}
+
+.form-grid label.span-2 {
+  grid-column: span 2;
+}
+
+.form-grid input {
+  border: 1px solid #DADCE0;
+  border-radius: 8px;
+  padding: 0.55rem 0.7rem;
+  font-size: 0.9rem;
+  font-weight: 400;
+  color: #1A1A1A;
+}
+
+.form-grid input:focus {
+  outline: none;
+  border-color: #E85A2A;
+}
+
+.form-error {
+  color: #B3261E;
+  font-size: 0.85rem;
+  margin: 0.9rem 0 0;
+}
+
+.btn-guardar {
+  margin-top: 1.1rem;
+  background: #1A1A1A;
+  color: #FFFFFF;
+  border: none;
+  font-weight: 700;
+  font-size: 0.9rem;
+  padding: 0.65rem 1.4rem;
+  border-radius: 9999px;
+  cursor: pointer;
+}
+
+.btn-guardar:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.row-inactiva {
+  opacity: 0.55;
+}
+
+.status-pill.inactive {
+  background: #F1F2F4;
+  color: #6B7280;
+}
+
+.btn-eliminar {
+  background: transparent;
+  border: 1px solid #E63946;
+  color: #E63946;
+  font-weight: 700;
+  font-size: 0.78rem;
+  padding: 0.35rem 0.75rem;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.btn-eliminar:hover {
+  background: #E63946;
+  color: #FFFFFF;
+}
+
+.btn-eliminar:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}

@@ -25,12 +25,19 @@ def get_or_create_current_user(
 
     email = claims.get("preferred_username") or claims.get("email", "")
 
+    # El App Role asignado en Azure AD viaja en el claim "roles" (array).
+    # Si el usuario tiene el rol "ADMIN" asignado en Azure Portal -> Enterprise
+    # Application -> Usuarios y grupos, se refleja aqui; en caso contrario,
+    # se trata como CLIENTE por defecto.
+    azure_roles = claims.get("roles", [])
+    rol_azure = "ADMIN" if "ADMIN" in azure_roles else "CLIENTE"
+
     # Inyección Hexagonal: Router -> Service -> Repository
     repository = UsuarioRepository(db)
     service = UsuarioService(repository)
 
     try:
-        return service.obtener_o_crear_usuario(azure_oid=azure_oid, email=email)
+        return service.obtener_o_crear_usuario(azure_oid=azure_oid, email=email, rol_azure=rol_azure)
     except IntegrityError:
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,

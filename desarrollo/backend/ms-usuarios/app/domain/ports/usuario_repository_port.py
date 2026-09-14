@@ -10,3 +10,7 @@ class UsuarioRepositoryPort(ABC):
     @abstractmethod
     def create(self, usuario_data: CrearUsuarioSchema) -> UsuarioModel:
         pass
+
+    @abstractmethod
+    def actualizar_rol(self, usuario: UsuarioModel, nuevo_rol: str) -> UsuarioModel:
+        pass

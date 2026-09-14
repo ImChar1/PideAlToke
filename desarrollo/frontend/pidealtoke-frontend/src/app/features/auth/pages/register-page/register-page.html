@@ -1,14 +1,35 @@
-<div class="login-container">
-  <div class="login-card">
-    <div class="brand-header">
-      <h1>PideAlToke</h1>
-      <p>Gestión de Pedidos & Logística</p>
+<div class="auth-shell">
+
+  <section class="auth-showcase">
+    <div class="showcase-content">
+      <div class="showcase-badge">
+        <span class="brand-mark">P</span>
+        <span>PideAlToke</span>
+      </div>
+      <h1>Crea tu cuenta y empieza a pedir en minutos.</h1>
+      <p>Regístrate con tu cuenta corporativa y accede al catálogo, tus pedidos y mucho más.</p>
+
+      <div class="showcase-stats">
+        <div>
+          <strong>OAuth 2.0</strong>
+          <span>Inicio de sesión seguro</span>
+        </div>
+        <div>
+          <strong>24/7</strong>
+          <span>Disponibilidad del sistema</span>
+        </div>
+      </div>
     </div>
-    
-    <div class="login-content">
+
+    <div class="showcase-blob showcase-blob--1"></div>
+    <div class="showcase-blob showcase-blob--2"></div>
+  </section>
+
+  <section class="auth-panel">
+    <div class="auth-card">
       <h2>Crear una Cuenta</h2>
       <p class="subtitle">Regístrate con tu correo corporativo o de organización en Azure Entra ID.</p>
-      
+
       <button class="btn-microsoft" (click)="onRegister()">
         <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 23 23">
           <path fill="#f35325" d="M1 1h10v10H1z"/>
@@ -24,5 +45,6 @@
         <a routerLink="/login" class="link-auth">Iniciar Sesión</a>
       </div>
     </div>
-  </div>
+  </section>
+
 </div>
