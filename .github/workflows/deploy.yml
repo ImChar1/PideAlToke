@@ -123,3 +123,26 @@ jobs:
           echo "### 🚀 ¡Despliegue Integrado Exitoso!" >> $GITHUB_STEP_SUMMARY
           echo "**🌐 Enlace Frontend:** http://${{ env.FRONTEND_PUBLIC_IP }}" >> $GITHUB_STEP_SUMMARY
           echo "**🔗 API Gateway Endpoint:** ${{ env.API_GATEWAY_ENDPOINT }}" >> $GITHUB_STEP_SUMMARY
+
+      - name: Reiniciar Contenedores en EC2
+        run: |
+          # Fuerza a la EC2 de Frontend a descargar la imagen que ya se subió a ECR
+          aws ssm send-command \
+            --document-name "AWS-RunShellScript" \
+            --targets "Key=tag:Name,Values=*frontend*" \
+            --parameters 'commands=[
+              "aws ecr get-login-password --region ${{ secrets.AWS_REGION }} | docker login --username AWS --password-stdin ${{ secrets.AWS_ACCOUNT_ID }}.dkr.ecr.${{ secrets.AWS_REGION }}.amazonaws.com",
+              "docker pull ${{ steps.login-ecr.outputs.registry }}/${{ secrets.ECR_FRONTEND_REPO }}:latest",
+              "docker stop frontend-container || true",
+              "docker rm frontend-container || true",
+              "docker run -d -p 80:80 --name frontend-container ${{ steps.login-ecr.outputs.registry }}/${{ secrets.ECR_FRONTEND_REPO }}:latest"
+            ]'
+
+          # Fuerza a la EC2 de Backend a levantar docker-compose
+          aws ssm send-command \
+            --document-name "AWS-RunShellScript" \
+            --targets "Key=tag:Name,Values=*backend*" \
+            --parameters 'commands=[
+              "aws ecr get-login-password --region ${{ secrets.AWS_REGION }} | docker login --username AWS --password-stdin ${{ secrets.AWS_ACCOUNT_ID }}.dkr.ecr.${{ secrets.AWS_REGION }}.amazonaws.com",
+              "cd /home/ec2-user && docker compose pull && docker compose up -d"
+            ]'

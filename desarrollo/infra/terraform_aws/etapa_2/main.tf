@@ -98,6 +98,10 @@ resource "aws_instance" "ec2_frontend" {
   vpc_security_group_ids = [aws_security_group.sg_frontend.id]
   iam_instance_profile = "LabInstanceProfile"
 
+  tags = {
+    Name = "frontend-ec2"
+  }
+
   user_data = <<-EOF
     #!/bin/bash
     sudo dnf update -y
@@ -120,6 +124,10 @@ resource "aws_instance" "ec2_backend" {
   associate_public_ip_address = true
   vpc_security_group_ids      = [aws_security_group.sg_backend.id]
   iam_instance_profile = "LabInstanceProfile"
+
+  tags = {
+    Name = "backend-ec2"
+  }
 
   user_data = <<-EOF
     #!/bin/bash
@@ -185,6 +193,10 @@ resource "aws_instance" "ec2_db" {
   subnet_id              = var.private_subnet_id
   vpc_security_group_ids = [aws_security_group.sg_db.id]
   iam_instance_profile = "LabInstanceProfile"
+
+  tags = {
+    Name = "db-ec2"
+  }
 
   user_data = <<-EOF
     #!/bin/bash
