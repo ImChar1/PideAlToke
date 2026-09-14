@@ -20,44 +20,12 @@ jobs:
           aws-session-token: ${{ secrets.AWS_SESSION_TOKEN }}
           aws-region: ${{ secrets.AWS_REGION }}
 
-      - name: Autenticar en Amazon ECR
-        id: login-ecr
-        uses: aws-actions/amazon-ecr-login@v2
-
-      - name: Construir y subir imagen Frontend a ECR
-        env:
-          ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
-          ECR_REPOSITORY: ${{ secrets.ECR_FRONTEND_REPO }}
-          IMAGE_TAG: latest
-        run: |
-          docker build -t $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG ./frontend/app-login
-          docker push $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG
-
-      - name: Construir y subir Microservicios Backend a ECR
-        env:
-          ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
-          ECR_REPOSITORY: ${{ secrets.ECR_BACKEND_REPO }}
-        run: |
-          # ms-usuarios
-          docker build -t $ECR_REGISTRY/$ECR_REPOSITORY:ms-usuarios ./backend/ms-usuarios
-          docker push $ECR_REGISTRY/$ECR_REPOSITORY:ms-usuarios
-
-          # ms-catalogo
-          docker build -t $ECR_REGISTRY/$ECR_REPOSITORY:ms-catalogo ./backend/ms-catalogo
-          docker push $ECR_REGISTRY/$ECR_REPOSITORY:ms-catalogo
-
-          # ms-inventario
-          docker build -t $ECR_REGISTRY/$ECR_REPOSITORY:ms-inventario ./backend/ms-inventario
-          docker push $ECR_REGISTRY/$ECR_REPOSITORY:ms-inventario
-
-          # ms-pedidos
-          docker build -t $ECR_REGISTRY/$ECR_REPOSITORY:ms-pedidos ./backend/ms-pedidos
-          docker push $ECR_REGISTRY/$ECR_REPOSITORY:ms-pedidos
-
       - name: Configurar Terraform
         uses: hashicorp/setup-terraform@v3
 
       - name: Inicializar y Aplicar Terraform
+        id: terraform
+        working-directory: ./desarrollo/infra/terraform_AWS/etapa_2
         env:
           TF_VAR_aws_region: ${{ secrets.AWS_REGION }}
           TF_VAR_aws_account_id: ${{ secrets.AWS_ACCOUNT_ID }}
@@ -74,3 +42,42 @@ jobs:
         run: |
           terraform init
           terraform apply -auto-approve
+          echo "API_GATEWAY_ENDPOINT=$(terraform output -raw api_gateway_endpoint)" >> $GITHUB_ENV
+          echo "FRONTEND_PUBLIC_IP=$(terraform output -raw frontend_public_ip)" >> $GITHUB_ENV
+
+      - name: Autenticar en Amazon ECR
+        id: login-ecr
+        uses: aws-actions/amazon-ecr-login@v2
+
+      - name: Construir y subir Microservicios Backend a ECR
+        env:
+          ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
+          ECR_REPOSITORY: ${{ secrets.ECR_BACKEND_REPO }}
+        run: |
+          docker build -t $ECR_REGISTRY/$ECR_REPOSITORY:ms-usuarios ./desarrollo/backend/ms-usuarios
+          docker push $ECR_REGISTRY/$ECR_REPOSITORY:ms-usuarios
+
+          docker build -t $ECR_REGISTRY/$ECR_REPOSITORY:ms-catalogo ./desarrollo/backend/ms-catalogo
+          docker push $ECR_REGISTRY/$ECR_REPOSITORY:ms-catalogo
+
+          docker build -t $ECR_REGISTRY/$ECR_REPOSITORY:ms-inventario ./desarrollo/backend/ms-inventario
+          docker push $ECR_REGISTRY/$ECR_REPOSITORY:ms-inventario
+
+          docker build -t $ECR_REGISTRY/$ECR_REPOSITORY:ms-pedidos ./desarrollo/backend/ms-pedidos
+          docker push $ECR_REGISTRY/$ECR_REPOSITORY:ms-pedidos
+
+      - name: Construir y subir imagen Frontend a ECR
+        env:
+          ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
+          ECR_REPOSITORY: ${{ secrets.ECR_FRONTEND_REPO }}
+          IMAGE_TAG: latest
+        run: |
+          docker build --build-arg API_GATEWAY_URL=${{ env.API_GATEWAY_ENDPOINT }} -t $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG ./desarrollo/frontend/app-login
+          docker push $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG
+
+      - name: Publicar Enlaces de Despliegue en GitHub
+        run: |
+          echo "### 🚀 ¡Despliegue Exitoso!" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**🌐 Enlace Frontend:** http://${{ env.FRONTEND_PUBLIC_IP }}" >> $GITHUB_STEP_SUMMARY
+          echo "**🔗 API Gateway Endpoint:** ${{ env.API_GATEWAY_ENDPOINT }}" >> $GITHUB_STEP_SUMMARY
