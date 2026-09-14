@@ -49,6 +49,11 @@ jobs:
         id: login-ecr
         uses: aws-actions/amazon-ecr-login@v2
 
+      - name: Crear Repositorios ECR en AWS si no existen
+        run: |
+          aws ecr describe-repositories --repository-names ${{ secrets.ECR_BACKEND_REPO }} || aws ecr create-repository --repository-name ${{ secrets.ECR_BACKEND_REPO }}
+          aws ecr describe-repositories --repository-names ${{ secrets.ECR_FRONTEND_REPO }} || aws ecr create-repository --repository-name ${{ secrets.ECR_FRONTEND_REPO }}
+
       - name: Construir y subir Microservicios Backend a ECR
         env:
           ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
