@@ -25,7 +25,7 @@ data "aws_ami" "amazon_linux_2023" {
 # 1. SECURITY GROUPS
 
 resource "aws_security_group" "sg_frontend" {
-  name   = "sg-frontend"
+  name   = "frontend-sg"
   vpc_id = var.vpc_id
 
   ingress {
@@ -51,7 +51,7 @@ resource "aws_security_group" "sg_frontend" {
 }
 
 resource "aws_security_group" "sg_backend" {
-  name   = "sg-backend"
+  name   = "backend-sg"
   vpc_id = var.vpc_id
 
   ingress {
@@ -60,7 +60,7 @@ resource "aws_security_group" "sg_backend" {
     protocol    = "tcp"
     cidr_blocks = ["0.0.0.0/0"]
   }
-    
+
   egress {
     from_port   = 0
     to_port     = 0
@@ -70,7 +70,7 @@ resource "aws_security_group" "sg_backend" {
 }
 
 resource "aws_security_group" "sg_db" {
-  name   = "sg-mariadb"
+  name   = "mariadb-sg"
   vpc_id = var.vpc_id
 
   ingress {
@@ -94,6 +94,7 @@ resource "aws_instance" "ec2_frontend" {
   ami                    = data.aws_ami.amazon_linux_2023.id
   instance_type          = "t2.micro"
   subnet_id              = var.public_subnet_id
+  associate_public_ip_address = true
   vpc_security_group_ids = [aws_security_group.sg_frontend.id]
   iam_instance_profile   = "LabInstanceProfile"
 
@@ -113,11 +114,12 @@ EOF
 }
 
 resource "aws_instance" "ec2_backend" {
-  ami                    = data.aws_ami.amazon_linux_2023.id
-  instance_type          = "t2.micro"
-  subnet_id              = var.private_subnet_id
-  vpc_security_group_ids = [aws_security_group.sg_backend.id]
-  iam_instance_profile   = "LabInstanceProfile"
+  ami                         = data.aws_ami.amazon_linux_2023.id
+  instance_type               = "t2.micro"
+  subnet_id                   = var.public_subnet_id
+  associate_public_ip_address = true
+  vpc_security_group_ids      = [aws_security_group.sg_backend.id]
+  iam_instance_profile        = "LabInstanceProfile"
 
   user_data = <<-EOF
     #!/bin/bash
@@ -205,7 +207,7 @@ resource "aws_instance" "ec2_db" {
 EOF
 }
 
-# 3. API GATEWAY HTTP, VPC LINK, INTEGRACIONES Y RUTAS
+# 3. API GATEWAY HTTP, INTEGRACIONES Y RUTAS (SIN VPC LINK)
 
 resource "aws_apigatewayv2_api" "http_api" {
   name          = "BackendGateway"
@@ -217,12 +219,6 @@ resource "aws_apigatewayv2_api" "http_api" {
     allow_headers = ["Authorization", "Content-Type"]
     max_age       = 300
   }
-}
-
-resource "aws_apigatewayv2_vpc_link" "vpc_link" {
-  name               = "apigw-vpc-link"
-  security_group_ids = [aws_security_group.sg_backend.id]
-  subnet_ids         = [var.private_subnet_id]
 }
 
 resource "aws_apigatewayv2_authorizer" "jwt_auth" {
@@ -237,44 +233,38 @@ resource "aws_apigatewayv2_authorizer" "jwt_auth" {
   }
 }
 
-# Integraciones asociadas a la VPC Link
 resource "aws_apigatewayv2_integration" "usuarios_integration" {
-  api_id             = aws_apigatewayv2_api.http_api.id
-  integration_type   = "HTTP_PROXY"
-  integration_uri    = "http://${aws_instance.ec2_backend.private_ip}:8001/datos"
-  integration_method = "GET"
-  connection_type    = "VPC_LINK"
-  connection_id      = aws_apigatewayv2_vpc_link.vpc_link.id
+  api_id           = aws_apigatewayv2_api.http_api.id
+  integration_type = "HTTP_PROXY"
+  integration_method = "ANY"
+  integration_uri  = "http://${aws_instance.ec2_backend.public_ip}:8001/datos"
+  connection_type  = "INTERNET"
 }
 
 resource "aws_apigatewayv2_integration" "catalogo_integration" {
-  api_id             = aws_apigatewayv2_api.http_api.id
-  integration_type   = "HTTP_PROXY"
-  integration_uri    = "http://${aws_instance.ec2_backend.private_ip}:8002/datos"
-  integration_method = "GET"
-  connection_type    = "VPC_LINK"
-  connection_id      = aws_apigatewayv2_vpc_link.vpc_link.id
+  api_id           = aws_apigatewayv2_api.http_api.id
+  integration_type = "HTTP_PROXY"
+  integration_method = "ANY"
+  integration_uri  = "http://${aws_instance.ec2_backend.public_ip}:8002/datos"
+  connection_type  = "INTERNET"
 }
 
 resource "aws_apigatewayv2_integration" "inventario_integration" {
-  api_id             = aws_apigatewayv2_api.http_api.id
-  integration_type   = "HTTP_PROXY"
-  integration_uri    = "http://${aws_instance.ec2_backend.private_ip}:8003/datos"
-  integration_method = "GET"
-  connection_type    = "VPC_LINK"
-  connection_id      = aws_apigatewayv2_vpc_link.vpc_link.id
+  api_id           = aws_apigatewayv2_api.http_api.id
+  integration_type = "HTTP_PROXY"
+  integration_method = "ANY"
+  integration_uri  = "http://${aws_instance.ec2_backend.public_ip}:8003/datos"
+  connection_type  = "INTERNET"
 }
 
 resource "aws_apigatewayv2_integration" "pedidos_integration" {
-  api_id             = aws_apigatewayv2_api.http_api.id
-  integration_type   = "HTTP_PROXY"
-  integration_uri    = "http://${aws_instance.ec2_backend.private_ip}:8004/datos"
-  integration_method = "GET"
-  connection_type    = "VPC_LINK"
-  connection_id      = aws_apigatewayv2_vpc_link.vpc_link.id
+  api_id           = aws_apigatewayv2_api.http_api.id
+  integration_type = "HTTP_PROXY"
+  integration_method = "ANY"
+  integration_uri  = "http://${aws_instance.ec2_backend.public_ip}:8004/datos"
+  connection_type  = "INTERNET"
 }
 
-# Rutas completas del API Gateway
 resource "aws_apigatewayv2_route" "route_usuarios" {
   api_id             = aws_apigatewayv2_api.http_api.id
   route_key          = "GET /v1/usuarios"
