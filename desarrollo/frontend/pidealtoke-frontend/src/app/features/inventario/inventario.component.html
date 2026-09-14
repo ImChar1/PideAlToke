@@ -1,0 +1,49 @@
+<div class="inventario-container">
+  <div class="header">
+    <h2>Control de Inventario</h2>
+    <span class="badge">{{ inventario.length }} ítems monitoreados</span>
+  </div>
+
+  @if (loading) {
+    <div class="state-box">Cargando niveles de stock...</div>
+  } @else if (error) {
+    <div class="state-box error">{{ error }}</div>
+  } @else {
+    <div class="table-responsive">
+      <table class="inventario-table">
+        <thead>
+          <tr>
+            <th>ID</th>
+            <th>SKU</th>
+            <th>Disponible</th>
+            <th>Reservado</th>
+            <th>Umbral Mínimo</th>
+            <th>Estado</th>
+          </tr>
+        </thead>
+        <tbody>
+          @for (item of inventario; track item.id) {
+            <tr>
+              <td>#{{ item.id }}</td>
+              <td class="sku-cell">{{ item.sku }}</td>
+              <td class="font-bold">{{ item.cantidad_disponible }}</td>
+              <td>{{ item.cantidad_reservada }}</td>
+              <td>{{ item.umbral_minimo ?? 'Sin límite' }}</td>
+              <td>
+                <span 
+                  class="status-pill" 
+                  [class.low-stock]="item.umbral_minimo != null && item.cantidad_disponible <= item.umbral_minimo">
+                  {{ (item.umbral_minimo != null && item.cantidad_disponible <= item.umbral_minimo) ? 'Bajo Stock' : 'Disponible' }}
+                </span>
+              </td>
+            </tr>
+          } @empty {
+            <tr>
+              <td colspan="6" class="text-center">No hay registros de inventario.</td>
+            </tr>
+          }
+        </tbody>
+      </table>
+    </div>
+  }
+</div>

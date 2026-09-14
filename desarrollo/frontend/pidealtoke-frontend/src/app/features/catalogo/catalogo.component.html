@@ -1,0 +1,30 @@
+<div class="catalogo-container">
+  <div class="catalogo-header">
+    <h2>Catálogo de Productos</h2>
+    <span class="badge">{{ productos.length }} disponibles</span>
+  </div>
+
+  @if (loading) {
+    <div class="state-container">
+      <div class="spinner"></div>
+      <p>Cargando catálogo desde el microservicio (:8002)...</p>
+    </div>
+  } @else if (error) {
+    <div class="state-container error">
+      <p class="error-msg">{{ error }}</p>
+    </div>
+  } @else {
+    <div class="product-grid">
+      @for (prod of productos; track prod.id) {
+        <app-product-card 
+          [product]="prod" 
+          (addToCart)="onAddToCart($event)">
+        </app-product-card>
+      } @empty {
+        <div class="state-container">
+          <p>No se encontraron productos registrados en la base de datos.</p>
+        </div>
+      }
+    </div>
+  }
+</div>

@@ -1,0 +1,72 @@
+.catalogo-container {
+  padding: 1rem 0;
+  width: 100%;
+}
+
+.catalogo-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 1.5rem;
+}
+
+.catalogo-header h2 {
+  font-size: 1.5rem;
+  font-weight: 700;
+  color: #1f2937;
+  margin: 0;
+}
+
+.badge {
+  background-color: #e0e7ff;
+  color: #4338ca;
+  font-size: 0.85rem;
+  font-weight: 600;
+  padding: 0.25rem 0.75rem;
+  border-radius: 9999px;
+}
+
+.product-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+  gap: 1.5rem;
+}
+
+.state-container {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 3rem;
+  background-color: #f9fafb;
+  border-radius: 8px;
+  border: 1px dashed #d1d5db;
+  color: #4b5563;
+}
+
+.state-container.error {
+  background-color: #fef2f2;
+  border-color: #fca5a5;
+}
+
+.error-msg {
+  color: #dc2626;
+  font-weight: 600;
+  margin: 0;
+}
+
+.spinner {
+  width: 32px;
+  height: 32px;
+  border: 3px solid #e5e7eb;
+  border-top-color: #2563eb;
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
+  margin-bottom: 0.75rem;
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
