@@ -23,15 +23,33 @@ jobs:
       - name: Configurar Terraform
         uses: hashicorp/setup-terraform@v3
 
-      - name: Inicializar y Aplicar Terraform
-        id: terraform
+      # --- ETAPA 1: REDES E INFRAESTRUCTURA BASE ---
+      - name: Aplicar Terraform Etapa 1
+        working-directory: desarrollo/infra/terraform_aws/etapa_1
+        env:
+          TF_VAR_aws_region: ${{ secrets.AWS_REGION }}
+        run: |
+          terraform init
+          terraform apply -auto-approve
+          echo "VPC_ID=$(terraform output -raw vpc_id)" >> $GITHUB_ENV
+          echo "PUBLIC_SUBNET_ID=$(terraform output -raw public_subnet_id)" >> $GITHUB_ENV
+          echo "PRIVATE_SUBNET_ID=$(terraform output -raw private_subnet_id)" >> $GITHUB_ENV
+        
+        # Agrega este paso al final de la Etapa 1
+      - name: Limpiar Etapa 1 si falla
+        if: failure()
+        working-directory: desarrollo/infra/terraform_aws/etapa_1
+        run: terraform destroy -auto-approve
+
+      # --- ETAPA 2: SERVICIOS Y CÓMPUTO ---
+      - name: Aplicar Terraform Etapa 2
         working-directory: desarrollo/infra/terraform_aws/etapa_2
         env:
           TF_VAR_aws_region: ${{ secrets.AWS_REGION }}
           TF_VAR_aws_account_id: ${{ secrets.AWS_ACCOUNT_ID }}
-          TF_VAR_vpc_id: ${{ secrets.VPC_ID }}
-          TF_VAR_public_subnet_id: ${{ secrets.PUBLIC_SUBNET_ID }}
-          TF_VAR_private_subnet_id: ${{ secrets.PRIVATE_SUBNET_ID }}
+          TF_VAR_vpc_id: ${{ env.VPC_ID }}
+          TF_VAR_public_subnet_id: ${{ env.PUBLIC_SUBNET_ID }}
+          TF_VAR_private_subnet_id: ${{ env.PRIVATE_SUBNET_ID }}
           TF_VAR_azure_tenant_name: ${{ secrets.AZURE_TENANT_NAME }}
           TF_VAR_azure_tenant_id: ${{ secrets.AZURE_TENANT_ID }}
           TF_VAR_azure_client_id: ${{ secrets.AZURE_CLIENT_ID }}
@@ -45,16 +63,36 @@ jobs:
           echo "API_GATEWAY_ENDPOINT=$(terraform output -raw api_gateway_endpoint)" >> $GITHUB_ENV
           echo "FRONTEND_PUBLIC_IP=$(terraform output -raw frontend_public_ip)" >> $GITHUB_ENV
 
+        # Agrega este paso al final de la Etapa 2
+      - name: Limpiar Etapa 2 si falla
+        if: failure()
+        working-directory: desarrollo/infra/terraform_aws/etapa_2
+        env:
+          TF_VAR_aws_region: ${{ secrets.AWS_REGION }}
+          TF_VAR_aws_account_id: ${{ secrets.AWS_ACCOUNT_ID }}
+          TF_VAR_vpc_id: ${{ env.VPC_ID }}
+          TF_VAR_public_subnet_id: ${{ env.PUBLIC_SUBNET_ID }}
+          TF_VAR_private_subnet_id: ${{ env.PRIVATE_SUBNET_ID }}
+          TF_VAR_azure_tenant_name: ${{ secrets.AZURE_TENANT_NAME }}
+          TF_VAR_azure_tenant_id: ${{ secrets.AZURE_TENANT_ID }}
+          TF_VAR_azure_client_id: ${{ secrets.AZURE_CLIENT_ID }}
+          TF_VAR_ecr_frontend_repo: ${{ secrets.ECR_FRONTEND_REPO }}
+          TF_VAR_ecr_backend_repo: ${{ secrets.ECR_BACKEND_REPO }}
+          TF_VAR_db_password: ${{ secrets.DB_PASSWORD }}
+          TF_VAR_db_name: ${{ secrets.DB_NAME }}
+        run: terraform destroy -auto-approve
+
+      # --- CONSTRUCCIÓN Y DESPLIEGUE DOCKER ---
       - name: Autenticar en Amazon ECR
         id: login-ecr
         uses: aws-actions/amazon-ecr-login@v2
 
-      - name: Crear Repositorios ECR en AWS si no existen
+      - name: Crear Repositorios ECR si no existen
         run: |
           aws ecr describe-repositories --repository-names ${{ secrets.ECR_BACKEND_REPO }} || aws ecr create-repository --repository-name ${{ secrets.ECR_BACKEND_REPO }}
           aws ecr describe-repositories --repository-names ${{ secrets.ECR_FRONTEND_REPO }} || aws ecr create-repository --repository-name ${{ secrets.ECR_FRONTEND_REPO }}
 
-      - name: Construir y subir Microservicios Backend a ECR
+      - name: Subir Microservicios Backend a ECR
         env:
           ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
           ECR_REPOSITORY: ${{ secrets.ECR_BACKEND_REPO }}
@@ -71,7 +109,7 @@ jobs:
           docker build -t $ECR_REGISTRY/$ECR_REPOSITORY:ms-pedidos ./desarrollo/backend/ms-pedidos
           docker push $ECR_REGISTRY/$ECR_REPOSITORY:ms-pedidos
 
-      - name: Construir y subir imagen Frontend a ECR
+      - name: Subir Frontend a ECR
         env:
           ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
           ECR_REPOSITORY: ${{ secrets.ECR_FRONTEND_REPO }}
@@ -80,9 +118,8 @@ jobs:
           docker build --build-arg API_GATEWAY_URL=${{ env.API_GATEWAY_ENDPOINT }} -t $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG ./desarrollo/frontend/pidealtoke-frontend
           docker push $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG
 
-      - name: Publicar Enlaces de Despliegue en GitHub
+      - name: Resumen del Despliegue
         run: |
-          echo "### 🚀 ¡Despliegue Exitoso!" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### 🚀 ¡Despliegue Integrado Exitoso!" >> $GITHUB_STEP_SUMMARY
           echo "**🌐 Enlace Frontend:** http://${{ env.FRONTEND_PUBLIC_IP }}" >> $GITHUB_STEP_SUMMARY
           echo "**🔗 API Gateway Endpoint:** ${{ env.API_GATEWAY_ENDPOINT }}" >> $GITHUB_STEP_SUMMARY
