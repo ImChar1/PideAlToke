@@ -118,11 +118,6 @@ jobs:
           docker build --build-arg API_GATEWAY_URL=${{ env.API_GATEWAY_ENDPOINT }} -t $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG ./desarrollo/frontend/pidealtoke-frontend
           docker push $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG
 
-      - name: Resumen del Despliegue
-        run: |
-          echo "### 🚀 ¡Despliegue Integrado Exitoso!" >> $GITHUB_STEP_SUMMARY
-          echo "**🌐 Enlace Frontend:** http://${{ env.FRONTEND_PUBLIC_IP }}" >> $GITHUB_STEP_SUMMARY
-          echo "**🔗 API Gateway Endpoint:** ${{ env.API_GATEWAY_ENDPOINT }}" >> $GITHUB_STEP_SUMMARY
 
       - name: Reiniciar Contenedores en EC2
         run: |
@@ -144,3 +139,8 @@ jobs:
               "aws ecr get-login-password --region ${{ secrets.AWS_REGION }} | docker login --username AWS --password-stdin ${{ secrets.AWS_ACCOUNT_ID }}.dkr.ecr.${{ secrets.AWS_REGION }}.amazonaws.com",
               "cd /home/ec2-user && docker compose pull && docker compose up -d"
             ]'
+      - name: Resumen del Despliegue
+        run: |
+          echo "### 🚀 ¡Despliegue Integrado Exitoso!" >> $GITHUB_STEP_SUMMARY
+          echo "**🌐 Enlace Frontend:** http://${{ env.FRONTEND_PUBLIC_IP }}" >> $GITHUB_STEP_SUMMARY
+          echo "**🔗 API Gateway Endpoint:** ${{ env.API_GATEWAY_ENDPOINT }}" >> $GITHUB_STEP_SUMMARY

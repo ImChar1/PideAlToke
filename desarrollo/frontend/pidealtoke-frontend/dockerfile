@@ -7,7 +7,7 @@ COPY . .
 
 # Recibe la variable desde el pipeline durante la compilación
 ARG API_GATEWAY_URL
-ENV API_GATEWAY_URL=$API_GATEWAY_URL
+RUN sed -i "s#http://localhost:8000#${API_GATEWAY_URL}#g" src/environments/environment.ts
 
 RUN npm run build -- --configuration production
 
@@ -15,8 +15,8 @@ RUN npm run build -- --configuration production
 FROM nginx:alpine
 # Reemplaza la configuración por defecto de Nginx con la configuración SPA
 COPY nginx.conf /etc/nginx/conf.d/default.conf
-# Copia los archivos estáticos compilados de Angular
-COPY --from=build /app/dist/pidealtoke-frontend /usr/share/nginx/html
+# Copia los archivos estáticos compilados de Angular (quedan dentro de /browser en Angular 17+)
+COPY --from=build /app/dist/pidealtoke-frontend/browser /usr/share/nginx/html
 
 EXPOSE 80
 CMD ["nginx", "-g", "daemon off;"]
