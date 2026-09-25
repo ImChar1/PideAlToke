@@ -15,7 +15,7 @@ app.add_middleware(
     allow_credentials=False,
     allow_methods=["*"],
     allow_headers=["*"],
-)
+) 
 
 # Controladores
 app.include_router(pedidos_router.router, prefix="/api/v1")

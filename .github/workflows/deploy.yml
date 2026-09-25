@@ -28,6 +28,14 @@ jobs:
         working-directory: desarrollo/infra/terraform_aws/etapa_1
         env:
           TF_VAR_aws_region: ${{ secrets.AWS_REGION }}
+          TF_VAR_aws_account_id: ${{ secrets.AWS_ACCOUNT_ID }}
+          TF_VAR_azure_tenant_name: ${{ secrets.AZURE_TENANT_NAME }}
+          TF_VAR_azure_tenant_id: ${{ secrets.AZURE_TENANT_ID }}
+          TF_VAR_azure_client_id: ${{ secrets.AZURE_CLIENT_ID }}
+          TF_VAR_ecr_frontend_repo: ${{ secrets.ECR_FRONTEND_REPO }}
+          TF_VAR_ecr_backend_repo: ${{ secrets.ECR_BACKEND_REPO }}
+          TF_VAR_db_password: ${{ secrets.DB_PASSWORD }}
+          TF_VAR_db_name: ${{ secrets.DB_NAME }}
         run: |
           terraform init
           terraform apply -auto-approve
@@ -35,10 +43,19 @@ jobs:
           echo "PUBLIC_SUBNET_ID=$(terraform output -raw public_subnet_id)" >> $GITHUB_ENV
           echo "PRIVATE_SUBNET_ID=$(terraform output -raw private_subnet_id)" >> $GITHUB_ENV
 
-        # Agrega este paso al final de la Etapa 1
       - name: Limpiar Etapa 1 si falla
         if: failure()
         working-directory: desarrollo/infra/terraform_aws/etapa_1
+        env:
+          TF_VAR_aws_region: ${{ secrets.AWS_REGION }}
+          TF_VAR_aws_account_id: ${{ secrets.AWS_ACCOUNT_ID }}
+          TF_VAR_azure_tenant_name: ${{ secrets.AZURE_TENANT_NAME }}
+          TF_VAR_azure_tenant_id: ${{ secrets.AZURE_TENANT_ID }}
+          TF_VAR_azure_client_id: ${{ secrets.AZURE_CLIENT_ID }}
+          TF_VAR_ecr_frontend_repo: ${{ secrets.ECR_FRONTEND_REPO }}
+          TF_VAR_ecr_backend_repo: ${{ secrets.ECR_BACKEND_REPO }}
+          TF_VAR_db_password: ${{ secrets.DB_PASSWORD }}
+          TF_VAR_db_name: ${{ secrets.DB_NAME }}
         run: terraform destroy -auto-approve
 
       # --- ETAPA 2: SERVICIOS Y CÓMPUTO ---
@@ -47,9 +64,6 @@ jobs:
         env:
           TF_VAR_aws_region: ${{ secrets.AWS_REGION }}
           TF_VAR_aws_account_id: ${{ secrets.AWS_ACCOUNT_ID }}
-          TF_VAR_vpc_id: ${{ env.VPC_ID }}
-          TF_VAR_public_subnet_id: ${{ env.PUBLIC_SUBNET_ID }}
-          TF_VAR_private_subnet_id: ${{ env.PRIVATE_SUBNET_ID }}
           TF_VAR_azure_tenant_name: ${{ secrets.AZURE_TENANT_NAME }}
           TF_VAR_azure_tenant_id: ${{ secrets.AZURE_TENANT_ID }}
           TF_VAR_azure_client_id: ${{ secrets.AZURE_CLIENT_ID }}
@@ -63,7 +77,6 @@ jobs:
           echo "API_GATEWAY_ENDPOINT=$(terraform output -raw api_gateway_endpoint)" >> $GITHUB_ENV
           echo "FRONTEND_PUBLIC_IP=$(terraform output -raw frontend_public_ip)" >> $GITHUB_ENV
 
-        # Agrega este paso al final de la Etapa 2
       - name: Limpiar Etapa 2 si falla
         if: failure()
         working-directory: desarrollo/infra/terraform_aws/etapa_2
@@ -118,8 +131,6 @@ jobs:
           docker build --build-arg API_GATEWAY_URL=${{ env.API_GATEWAY_ENDPOINT }} -t $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG ./desarrollo/frontend/pidealtoke-frontend
           docker push $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG
 
-      # --- Nuevo paso: evita que el SSM falle porque las EC2 recién creadas
-      # todavía no tienen el agente SSM listo (pasa sobre todo en el primer deploy) ---
       - name: Esperar a que las instancias estén listas para SSM
         run: |
           echo "Esperando a que frontend-ec2 y backend-ec2 pasen su chequeo de estado..."
@@ -145,8 +156,29 @@ jobs:
             --targets "Key=tag:Name,Values=backend-ec2" \
             --parameters 'commands=[
               "aws ecr get-login-password --region ${{ secrets.AWS_REGION }} | docker login --username AWS --password-stdin ${{ secrets.AWS_ACCOUNT_ID }}.dkr.ecr.${{ secrets.AWS_REGION }}.amazonaws.com",
-              "cd /home/ec2-user && docker compose pull && docker compose up -d"
+              "cd /home/ec2-user",
+              "cat <<EOF > .env",
+              "AZURE_TENANT_ID=${{ secrets.AZURE_TENANT_ID }}",
+              "AZURE_CLIENT_ID=${{ secrets.AZURE_CLIENT_ID }}",
+              "DB_ROOT_PASSWORD=${{ secrets.DB_PASSWORD }}",
+              "DB_HOST=db",
+              "DB_PORT=3306",
+              "DB_NAME_USUARIOS=${{ secrets.DB_NAME_USUARIOS }}",
+              "DB_NAME_CATALOGO=${{ secrets.DB_NAME_CATALOGO }}",
+              "DB_NAME_INVENTARIO=${{ secrets.DB_NAME_INVENTARIO }}",
+              "DB_NAME_PEDIDOS=${{ secrets.DB_NAME_PEDIDOS }}",
+              "PORT_DB=3306",
+              "PORT_MS_USUARIOS=8001",
+              "PORT_MS_CATALOGO=8002",
+              "PORT_MS_INVENTARIO=8003",
+              "PORT_MS_PEDIDOS=8004",
+              "PORT_GATEWAY=8080",
+              "PORT_FRONTEND=4200",
+              "EOF",
+              "docker compose pull",
+              "docker compose up -d"
             ]'
+
       - name: Resumen del Despliegue
         run: |
           echo "### 🚀 ¡Despliegue Integrado Exitoso!" >> $GITHUB_STEP_SUMMARY
