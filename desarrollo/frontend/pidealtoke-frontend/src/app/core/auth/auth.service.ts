@@ -17,7 +17,7 @@ export class AuthService {
 
   logout(): void {
     this.msalService.logoutRedirect({
-      postLogoutRedirectUri: 'http://localhost:4200'
+      postLogoutRedirectUri: window.location.origin
     });
   }
 

@@ -468,6 +468,54 @@ resource "aws_apigatewayv2_route" "route_pedidos" {
   authorizer_id      = aws_apigatewayv2_authorizer.jwt_auth.id
 }
 
+resource "aws_apigatewayv2_route" "route_usuarios_base_options" {
+  api_id    = aws_apigatewayv2_api.http_api.id
+  route_key = "OPTIONS /api/v1/users"
+  target    = "integrations/${aws_apigatewayv2_integration.usuarios_integration_base.id}"
+}
+
+resource "aws_apigatewayv2_route" "route_usuarios_options" {
+  api_id    = aws_apigatewayv2_api.http_api.id
+  route_key = "OPTIONS /api/v1/users/{proxy+}"
+  target    = "integrations/${aws_apigatewayv2_integration.usuarios_integration.id}"
+}
+
+resource "aws_apigatewayv2_route" "route_catalogo_base_options" {
+  api_id    = aws_apigatewayv2_api.http_api.id
+  route_key = "OPTIONS /api/v1/productos"
+  target    = "integrations/${aws_apigatewayv2_integration.catalogo_integration_base.id}"
+}
+
+resource "aws_apigatewayv2_route" "route_catalogo_options" {
+  api_id    = aws_apigatewayv2_api.http_api.id
+  route_key = "OPTIONS /api/v1/productos/{proxy+}"
+  target    = "integrations/${aws_apigatewayv2_integration.catalogo_integration.id}"
+}
+
+resource "aws_apigatewayv2_route" "route_inventario_base_options" {
+  api_id    = aws_apigatewayv2_api.http_api.id
+  route_key = "OPTIONS /api/v1/inventario"
+  target    = "integrations/${aws_apigatewayv2_integration.inventario_integration_base.id}"
+}
+
+resource "aws_apigatewayv2_route" "route_inventario_options" {
+  api_id    = aws_apigatewayv2_api.http_api.id
+  route_key = "OPTIONS /api/v1/inventario/{proxy+}"
+  target    = "integrations/${aws_apigatewayv2_integration.inventario_integration.id}"
+}
+
+resource "aws_apigatewayv2_route" "route_pedidos_base_options" {
+  api_id    = aws_apigatewayv2_api.http_api.id
+  route_key = "OPTIONS /api/v1/pedidos"
+  target    = "integrations/${aws_apigatewayv2_integration.pedidos_integration_base.id}"
+}
+
+resource "aws_apigatewayv2_route" "route_pedidos_options" {
+  api_id    = aws_apigatewayv2_api.http_api.id
+  route_key = "OPTIONS /api/v1/pedidos/{proxy+}"
+  target    = "integrations/${aws_apigatewayv2_integration.pedidos_integration.id}"
+}
+
 resource "aws_apigatewayv2_stage" "dev_stage" {
   api_id      = aws_apigatewayv2_api.http_api.id
   name        = "Desarrollo"
