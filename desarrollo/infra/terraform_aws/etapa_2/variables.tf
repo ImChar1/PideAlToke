@@ -25,7 +25,9 @@ variable "public_subnet_id" {
 variable "private_subnet_id" {
   type        = string
   description = "ID de la subred privada para la base de datos MariaDB"
-  default     = "subnet-0b1298af91600ad69"
+  # Sin valor por defecto real: siempre debe venir de la Etapa 1
+  # (TF_VAR_private_subnet_id).
+  default = ""
 }
 
 variable "azure_tenant_name" {

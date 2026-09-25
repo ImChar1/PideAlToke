@@ -34,7 +34,7 @@ jobs:
           echo "VPC_ID=$(terraform output -raw vpc_id)" >> $GITHUB_ENV
           echo "PUBLIC_SUBNET_ID=$(terraform output -raw public_subnet_id)" >> $GITHUB_ENV
           echo "PRIVATE_SUBNET_ID=$(terraform output -raw private_subnet_id)" >> $GITHUB_ENV
-        
+
         # Agrega este paso al final de la Etapa 1
       - name: Limpiar Etapa 1 si falla
         if: failure()
@@ -118,6 +118,14 @@ jobs:
           docker build --build-arg API_GATEWAY_URL=${{ env.API_GATEWAY_ENDPOINT }} -t $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG ./desarrollo/frontend/pidealtoke-frontend
           docker push $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG
 
+      # --- Nuevo paso: evita que el SSM falle porque las EC2 recién creadas
+      # todavía no tienen el agente SSM listo (pasa sobre todo en el primer deploy) ---
+      - name: Esperar a que las instancias estén listas para SSM
+        run: |
+          echo "Esperando a que frontend-ec2 y backend-ec2 pasen su chequeo de estado..."
+          FRONTEND_ID=$(aws ec2 describe-instances --filters "Name=tag:Name,Values=frontend-ec2" "Name=instance-state-name,Values=running" --query "Reservations[0].Instances[0].InstanceId" --output text)
+          BACKEND_ID=$(aws ec2 describe-instances --filters "Name=tag:Name,Values=backend-ec2" "Name=instance-state-name,Values=running" --query "Reservations[0].Instances[0].InstanceId" --output text)
+          aws ec2 wait instance-status-ok --instance-ids "$FRONTEND_ID" "$BACKEND_ID"
 
       - name: Reiniciar Contenedores en EC2
         run: |

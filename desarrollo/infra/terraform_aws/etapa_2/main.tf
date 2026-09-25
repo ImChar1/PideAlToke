@@ -152,7 +152,7 @@ resource "aws_instance" "ec2_backend" {
         ports:
           - "8001:8000"
         environment:
-          DATABASE_URL: mysql+pymysql://root:${var.db_password}@${aws_instance.ec2_db.private_ip}:3306/${var.db_name}
+          DATABASE_URL: mysql+pymysql://root:${var.db_password}@${aws_instance.ec2_db.private_ip}:3306/usuarios_db
           AZURE_TENANT_ID: ${var.azure_tenant_id}
           AZURE_CLIENT_ID: ${var.azure_client_id}
         restart: always
@@ -162,7 +162,9 @@ resource "aws_instance" "ec2_backend" {
         ports:
           - "8002:8000"
         environment:
-          DATABASE_URL: mysql+pymysql://root:${var.db_password}@${aws_instance.ec2_db.private_ip}:3306/${var.db_name}
+          DATABASE_URL: mysql+pymysql://root:${var.db_password}@${aws_instance.ec2_db.private_ip}:3306/catalogo_db
+          AZURE_TENANT_ID: ${var.azure_tenant_id}
+          AZURE_CLIENT_ID: ${var.azure_client_id}
         restart: always
 
       ms-inventario:
@@ -170,7 +172,9 @@ resource "aws_instance" "ec2_backend" {
         ports:
           - "8003:8000"
         environment:
-          DATABASE_URL: mysql+pymysql://root:${var.db_password}@${aws_instance.ec2_db.private_ip}:3306/${var.db_name}
+          DATABASE_URL: mysql+pymysql://root:${var.db_password}@${aws_instance.ec2_db.private_ip}:3306/inventario_db
+          AZURE_TENANT_ID: ${var.azure_tenant_id}
+          AZURE_CLIENT_ID: ${var.azure_client_id}
         restart: always
 
       ms-pedidos:
@@ -178,7 +182,9 @@ resource "aws_instance" "ec2_backend" {
         ports:
           - "8004:8000"
         environment:
-          DATABASE_URL: mysql+pymysql://root:${var.db_password}@${aws_instance.ec2_db.private_ip}:3306/${var.db_name}
+          DATABASE_URL: mysql+pymysql://root:${var.db_password}@${aws_instance.ec2_db.private_ip}:3306/pedidos_db
+          AZURE_TENANT_ID: ${var.azure_tenant_id}
+          AZURE_CLIENT_ID: ${var.azure_client_id}
         restart: always
     DC_EOF
 
@@ -207,13 +213,98 @@ resource "aws_instance" "ec2_db" {
     sudo usermod -aG docker ec2-user
 
     mkdir -p /var/lib/mariadb_data
+    mkdir -p /home/ec2-user/init-db
+
+    cat << 'SQL_EOF' > /home/ec2-user/init-db/init-01.sql
+    CREATE DATABASE IF NOT EXISTS usuarios_db CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+    CREATE DATABASE IF NOT EXISTS pedidos_db CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+    CREATE DATABASE IF NOT EXISTS inventario_db CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+    CREATE DATABASE IF NOT EXISTS catalogo_db CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+
+    USE usuarios_db;
+    CREATE TABLE IF NOT EXISTS usuarios (
+        id INT AUTO_INCREMENT PRIMARY KEY,
+        azure_oid VARCHAR(100) NOT NULL UNIQUE,
+        email VARCHAR(150) UNIQUE,
+        rol VARCHAR(50) NOT NULL DEFAULT 'CLIENTE',
+        activo BOOLEAN DEFAULT TRUE,
+        fecha_creacion DATETIME DEFAULT CURRENT_TIMESTAMP,
+        INDEX idx_usuarios_azure_oid (azure_oid)
+    );
+
+    USE pedidos_db;
+    CREATE TABLE IF NOT EXISTS pedidos (
+        id INT AUTO_INCREMENT PRIMARY KEY,
+        cliente_id VARCHAR(100) NOT NULL,
+        monto_total DECIMAL(10, 2) NOT NULL,
+        estado VARCHAR(50) NOT NULL DEFAULT 'PENDIENTE',
+        items JSON NOT NULL,
+        fecha_creacion DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        INDEX idx_pedidos_cliente_id (cliente_id)
+    );
+
+    USE inventario_db;
+    CREATE TABLE IF NOT EXISTS inventario (
+        id INT AUTO_INCREMENT PRIMARY KEY,
+        sku VARCHAR(50) NOT NULL UNIQUE,
+        cantidad_disponible INT NOT NULL DEFAULT 0,
+        cantidad_reservada INT NOT NULL DEFAULT 0,
+        umbral_minimo INT NULL,
+        fecha_creacion DATETIME DEFAULT CURRENT_TIMESTAMP,
+        fecha_actualizacion DATETIME NULL ON UPDATE CURRENT_TIMESTAMP,
+        INDEX idx_inventario_sku (sku)
+    );
+
+    USE catalogo_db;
+    CREATE TABLE IF NOT EXISTS productos (
+        id INT AUTO_INCREMENT PRIMARY KEY,
+        sku VARCHAR(50) NOT NULL UNIQUE,
+        nombre VARCHAR(150) NOT NULL,
+        descripcion VARCHAR(500) NULL,
+        precio DECIMAL(10, 2) NOT NULL,
+        categoria VARCHAR(100) NULL,
+        imagen_url VARCHAR(300) NULL,
+        activo BOOLEAN NOT NULL DEFAULT TRUE,
+        fecha_creacion DATETIME DEFAULT CURRENT_TIMESTAMP,
+        fecha_actualizacion DATETIME NULL ON UPDATE CURRENT_TIMESTAMP,
+        INDEX idx_productos_sku (sku),
+        INDEX idx_productos_nombre (nombre),
+        INDEX idx_productos_categoria (categoria)
+    );
+    SQL_EOF
+
+    cat << 'SQL_EOF' > /home/ec2-user/init-db/init-02-seed.sql
+    USE catalogo_db;
+
+    INSERT INTO productos (sku, nombre, descripcion, precio, categoria, activo) VALUES
+    ('PROD-HAMB-001', 'Hamburguesa Completa', 'Doble carne, queso cheddar, tocino y salsa especial', 6990.00, 'Comida Rapida', 1),
+    ('PROD-HAMB-002', 'Hamburguesa Vegana', 'Medallon de garbanzos, palta, tomate y mayonesa vegana', 7490.00, 'Comida Rapida', 1),
+    ('PROD-PIZZ-001', 'Pizza Pepperoni Familiar', 'Masa artesanal, salsa de tomate, queso mozzarella y pepperoni', 11990.00, 'Pizzas', 1),
+    ('PROD-PIZZ-002', 'Pizza Napolitana Individual', 'Salsa de tomate, queso mozzarella, tomate fresco y oregano', 6490.00, 'Pizzas', 1),
+    ('PROD-PIZZ-003', 'Pizza Cuatro Quesos Mediana', 'Mozzarella, gouda, queso azul y parmesano sobre salsa blanca', 9990.00, 'Pizzas', 1),
+    ('PROD-BEB-001', 'Bebida Limo 1.5L', 'Bebida gaseosa sabor limon', 2200.00, 'Bebidas', 1),
+    ('PROD-BEB-002', 'Jugo Natural Naranja 500ml', 'Jugo de naranja recien exprimido sin azucar anadida', 2800.00, 'Bebidas', 1),
+    ('PROD-BEB-003', 'Cerveza Artesanal IPA 330ml', 'Cerveza artesanal de amargor moderado y notas citricas', 3500.00, 'Bebidas', 1),
+    ('PROD-PAP-001', 'Papas Fritas Grandes', 'Papas corte tradicional crujientes con sal marina', 3490.00, 'Acompanamientos', 1),
+    ('PROD-PAP-002', 'Papas Supremas', 'Papas fritas cubiertas con salsa de queso cheddar y tocino crujiente', 4990.00, 'Acompanamientos', 1),
+    ('PROD-ACOM-001', 'Empanadas de Queso (3 uds)', 'Empanadas fritas rellenas de queso mozzarella derretido', 2990.00, 'Acompanamientos', 1),
+    ('PROD-ACOM-002', 'Aros de Cebolla', 'Aros de cebolla empanizados y crujientes con salsa BBQ', 3200.00, 'Acompanamientos', 1),
+    ('PROD-SAND-001', 'Churrasco Italiano', 'Lomo de vacuno, abundante palta, tomate y mayonesa casera', 6200.00, 'Sandwiches', 1),
+    ('PROD-SAND-002', 'Lomo Luco', 'Lomo de vacuno a la plancha con queso mantecoso derretido', 5900.00, 'Sandwiches', 1),
+    ('PROD-SAND-003', 'Club Sandwich Pollo', 'Pechuga de pollo, lechuga, tomate, huevo duro, tocino y mayo', 6500.00, 'Sandwiches', 1),
+    ('PROD-POS-001', 'Brownie con Helado', 'Brownie caliente de chocolate con una bola de helado de vainilla', 3800.00, 'Postres', 1),
+    ('PROD-POS-002', 'Cheesecake de Frutilla', 'Pastel de queso crema sobre base de galleta con mermelada de frutilla', 3900.00, 'Postres', 1),
+    ('PROD-POS-003', 'Churros con Dulce de Leche', '6 churros crujientes espolvoreados con azucar y canela', 2990.00, 'Postres', 1),
+    ('PROD-PROM-001', 'Combo Pareja Burger', '2 Hamburguesas completas + 1 Papa Frita Grande + 2 Bebidas 500ml', 15990.00, 'Promociones', 1),
+    ('PROD-PROM-002', 'Pack Pizza & Acompanamiento', '1 Pizza Familiar a eleccion + 1 Aros de Cebolla + 1 Bebida 1.5L', 18990.00, 'Promociones', 1);
+    SQL_EOF
 
     docker run -d \
       --name pidealtoke-db \
       -p 3306:3306 \
       -v /var/lib/mariadb_data:/var/lib/mysql \
+      -v /home/ec2-user/init-db:/docker-entrypoint-initdb.d \
       -e MYSQL_ROOT_PASSWORD=${var.db_password} \
-      -e MYSQL_DATABASE=${var.db_name} \
       --restart always \
       mariadb:11.2
 EOF
@@ -246,64 +337,100 @@ resource "aws_apigatewayv2_authorizer" "jwt_auth" {
 }
 
 resource "aws_apigatewayv2_integration" "usuarios_integration" {
-  api_id           = aws_apigatewayv2_api.http_api.id
-  integration_type = "HTTP_PROXY"
-  integration_method = "ANY"
-  integration_uri  = "http://${aws_instance.ec2_backend.public_ip}:8001/datos"
-  connection_type  = "INTERNET"
+  api_id              = aws_apigatewayv2_api.http_api.id
+  integration_type    = "HTTP_PROXY"
+  integration_method  = "ANY"
+  integration_uri     = "http://${aws_instance.ec2_backend.public_ip}:8001/api/v1/users/{proxy}"
+  connection_type     = "INTERNET"
 }
 
 resource "aws_apigatewayv2_integration" "catalogo_integration" {
-  api_id           = aws_apigatewayv2_api.http_api.id
-  integration_type = "HTTP_PROXY"
-  integration_method = "ANY"
-  integration_uri  = "http://${aws_instance.ec2_backend.public_ip}:8002/datos"
-  connection_type  = "INTERNET"
+  api_id              = aws_apigatewayv2_api.http_api.id
+  integration_type    = "HTTP_PROXY"
+  integration_method  = "ANY"
+  integration_uri     = "http://${aws_instance.ec2_backend.public_ip}:8002/api/v1/productos/{proxy}"
+  connection_type     = "INTERNET"
 }
 
 resource "aws_apigatewayv2_integration" "inventario_integration" {
-  api_id           = aws_apigatewayv2_api.http_api.id
-  integration_type = "HTTP_PROXY"
-  integration_method = "ANY"
-  integration_uri  = "http://${aws_instance.ec2_backend.public_ip}:8003/datos"
-  connection_type  = "INTERNET"
+  api_id              = aws_apigatewayv2_api.http_api.id
+  integration_type    = "HTTP_PROXY"
+  integration_method  = "ANY"
+  integration_uri     = "http://${aws_instance.ec2_backend.public_ip}:8003/api/v1/inventario/{proxy}"
+  connection_type     = "INTERNET"
 }
 
 resource "aws_apigatewayv2_integration" "pedidos_integration" {
-  api_id           = aws_apigatewayv2_api.http_api.id
-  integration_type = "HTTP_PROXY"
-  integration_method = "ANY"
-  integration_uri  = "http://${aws_instance.ec2_backend.public_ip}:8004/datos"
-  connection_type  = "INTERNET"
+  api_id              = aws_apigatewayv2_api.http_api.id
+  integration_type    = "HTTP_PROXY"
+  integration_method  = "ANY"
+  integration_uri     = "http://${aws_instance.ec2_backend.public_ip}:8004/api/v1/pedidos/{proxy}"
+  connection_type     = "INTERNET"
+}
+
+# Cada microservicio necesita dos rutas: una para el path base ("/api/v1/productos")
+# y otra con {proxy+} para subrutas ("/api/v1/productos/5", etc.), porque
+# {proxy+} en API Gateway exige al menos un segmento adicional.
+
+resource "aws_apigatewayv2_route" "route_usuarios_base" {
+  api_id             = aws_apigatewayv2_api.http_api.id
+  route_key          = "ANY /api/v1/users"
+  target             = "integrations/${aws_apigatewayv2_integration.usuarios_integration.id}"
+  authorization_type = "JWT"
+  authorizer_id      = aws_apigatewayv2_authorizer.jwt_auth.id
 }
 
 resource "aws_apigatewayv2_route" "route_usuarios" {
   api_id             = aws_apigatewayv2_api.http_api.id
-  route_key          = "GET /v1/usuarios"
+  route_key          = "ANY /api/v1/users/{proxy+}"
   target             = "integrations/${aws_apigatewayv2_integration.usuarios_integration.id}"
+  authorization_type = "JWT"
+  authorizer_id      = aws_apigatewayv2_authorizer.jwt_auth.id
+}
+
+resource "aws_apigatewayv2_route" "route_catalogo_base" {
+  api_id             = aws_apigatewayv2_api.http_api.id
+  route_key          = "ANY /api/v1/productos"
+  target             = "integrations/${aws_apigatewayv2_integration.catalogo_integration.id}"
   authorization_type = "JWT"
   authorizer_id      = aws_apigatewayv2_authorizer.jwt_auth.id
 }
 
 resource "aws_apigatewayv2_route" "route_catalogo" {
   api_id             = aws_apigatewayv2_api.http_api.id
-  route_key          = "GET /v1/catalogo"
+  route_key          = "ANY /api/v1/productos/{proxy+}"
   target             = "integrations/${aws_apigatewayv2_integration.catalogo_integration.id}"
+  authorization_type = "JWT"
+  authorizer_id      = aws_apigatewayv2_authorizer.jwt_auth.id
+}
+
+resource "aws_apigatewayv2_route" "route_inventario_base" {
+  api_id             = aws_apigatewayv2_api.http_api.id
+  route_key          = "ANY /api/v1/inventario"
+  target             = "integrations/${aws_apigatewayv2_integration.inventario_integration.id}"
   authorization_type = "JWT"
   authorizer_id      = aws_apigatewayv2_authorizer.jwt_auth.id
 }
 
 resource "aws_apigatewayv2_route" "route_inventario" {
   api_id             = aws_apigatewayv2_api.http_api.id
-  route_key          = "GET /v1/inventario"
+  route_key          = "ANY /api/v1/inventario/{proxy+}"
   target             = "integrations/${aws_apigatewayv2_integration.inventario_integration.id}"
+  authorization_type = "JWT"
+  authorizer_id      = aws_apigatewayv2_authorizer.jwt_auth.id
+}
+
+resource "aws_apigatewayv2_route" "route_pedidos_base" {
+  api_id             = aws_apigatewayv2_api.http_api.id
+  route_key          = "ANY /api/v1/pedidos"
+  target             = "integrations/${aws_apigatewayv2_integration.pedidos_integration.id}"
   authorization_type = "JWT"
   authorizer_id      = aws_apigatewayv2_authorizer.jwt_auth.id
 }
 
 resource "aws_apigatewayv2_route" "route_pedidos" {
   api_id             = aws_apigatewayv2_api.http_api.id
-  route_key          = "GET /v1/pedidos"
+  route_key          = "ANY /api/v1/pedidos/{proxy+}"
   target             = "integrations/${aws_apigatewayv2_integration.pedidos_integration.id}"
   authorization_type = "JWT"
   authorizer_id      = aws_apigatewayv2_authorizer.jwt_auth.id

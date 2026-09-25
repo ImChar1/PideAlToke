@@ -5,9 +5,9 @@ COPY package*.json ./
 RUN npm ci
 COPY . .
 
-# Recibe la variable desde el pipeline durante la compilación
-ARG API_GATEWAY_URL
-RUN sed -i "s#http://localhost:8000#${API_GATEWAY_URL}#g" src/environments/environment.ts
+# Recibe la variable desde el pipeline (o desde docker-compose en local) durante la compilación
+ARG API_GATEWAY_URL=http://localhost:8080
+RUN sed -i "s#http://localhost:8080#${API_GATEWAY_URL}#g" src/environments/environment.ts
 
 RUN npm run build -- --configuration production
 
