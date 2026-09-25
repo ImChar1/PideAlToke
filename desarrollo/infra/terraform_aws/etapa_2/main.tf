@@ -344,11 +344,27 @@ resource "aws_apigatewayv2_integration" "usuarios_integration" {
   connection_type     = "INTERNET"
 }
 
+resource "aws_apigatewayv2_integration" "usuarios_integration_base" {
+  api_id              = aws_apigatewayv2_api.http_api.id
+  integration_type    = "HTTP_PROXY"
+  integration_method  = "ANY"
+  integration_uri     = "http://${aws_instance.ec2_backend.public_ip}:8001/api/v1/users"
+  connection_type     = "INTERNET"
+}
+
 resource "aws_apigatewayv2_integration" "catalogo_integration" {
   api_id              = aws_apigatewayv2_api.http_api.id
   integration_type    = "HTTP_PROXY"
   integration_method  = "ANY"
   integration_uri     = "http://${aws_instance.ec2_backend.public_ip}:8002/api/v1/productos/{proxy}"
+  connection_type     = "INTERNET"
+}
+
+resource "aws_apigatewayv2_integration" "catalogo_integration_base" {
+  api_id              = aws_apigatewayv2_api.http_api.id
+  integration_type    = "HTTP_PROXY"
+  integration_method  = "ANY"
+  integration_uri     = "http://${aws_instance.ec2_backend.public_ip}:8002/api/v1/productos"
   connection_type     = "INTERNET"
 }
 
@@ -360,11 +376,27 @@ resource "aws_apigatewayv2_integration" "inventario_integration" {
   connection_type     = "INTERNET"
 }
 
+resource "aws_apigatewayv2_integration" "inventario_integration_base" {
+  api_id              = aws_apigatewayv2_api.http_api.id
+  integration_type    = "HTTP_PROXY"
+  integration_method  = "ANY"
+  integration_uri     = "http://${aws_instance.ec2_backend.public_ip}:8003/api/v1/inventario"
+  connection_type     = "INTERNET"
+}
+
 resource "aws_apigatewayv2_integration" "pedidos_integration" {
   api_id              = aws_apigatewayv2_api.http_api.id
   integration_type    = "HTTP_PROXY"
   integration_method  = "ANY"
   integration_uri     = "http://${aws_instance.ec2_backend.public_ip}:8004/api/v1/pedidos/{proxy}"
+  connection_type     = "INTERNET"
+}
+
+resource "aws_apigatewayv2_integration" "pedidos_integration_base" {
+  api_id              = aws_apigatewayv2_api.http_api.id
+  integration_type    = "HTTP_PROXY"
+  integration_method  = "ANY"
+  integration_uri     = "http://${aws_instance.ec2_backend.public_ip}:8004/api/v1/pedidos"
   connection_type     = "INTERNET"
 }
 
@@ -375,7 +407,7 @@ resource "aws_apigatewayv2_integration" "pedidos_integration" {
 resource "aws_apigatewayv2_route" "route_usuarios_base" {
   api_id             = aws_apigatewayv2_api.http_api.id
   route_key          = "ANY /api/v1/users"
-  target             = "integrations/${aws_apigatewayv2_integration.usuarios_integration.id}"
+  target             = "integrations/${aws_apigatewayv2_integration.usuarios_integration_base.id}"
   authorization_type = "JWT"
   authorizer_id      = aws_apigatewayv2_authorizer.jwt_auth.id
 }
@@ -391,7 +423,7 @@ resource "aws_apigatewayv2_route" "route_usuarios" {
 resource "aws_apigatewayv2_route" "route_catalogo_base" {
   api_id             = aws_apigatewayv2_api.http_api.id
   route_key          = "ANY /api/v1/productos"
-  target             = "integrations/${aws_apigatewayv2_integration.catalogo_integration.id}"
+  target             = "integrations/${aws_apigatewayv2_integration.catalogo_integration_base.id}"
   authorization_type = "JWT"
   authorizer_id      = aws_apigatewayv2_authorizer.jwt_auth.id
 }
@@ -407,7 +439,7 @@ resource "aws_apigatewayv2_route" "route_catalogo" {
 resource "aws_apigatewayv2_route" "route_inventario_base" {
   api_id             = aws_apigatewayv2_api.http_api.id
   route_key          = "ANY /api/v1/inventario"
-  target             = "integrations/${aws_apigatewayv2_integration.inventario_integration.id}"
+  target             = "integrations/${aws_apigatewayv2_integration.inventario_integration_base.id}"
   authorization_type = "JWT"
   authorizer_id      = aws_apigatewayv2_authorizer.jwt_auth.id
 }
@@ -423,7 +455,7 @@ resource "aws_apigatewayv2_route" "route_inventario" {
 resource "aws_apigatewayv2_route" "route_pedidos_base" {
   api_id             = aws_apigatewayv2_api.http_api.id
   route_key          = "ANY /api/v1/pedidos"
-  target             = "integrations/${aws_apigatewayv2_integration.pedidos_integration.id}"
+  target             = "integrations/${aws_apigatewayv2_integration.pedidos_integration_base.id}"
   authorization_type = "JWT"
   authorizer_id      = aws_apigatewayv2_authorizer.jwt_auth.id
 }
