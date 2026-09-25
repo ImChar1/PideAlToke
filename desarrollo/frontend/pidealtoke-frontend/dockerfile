@@ -13,10 +13,20 @@ RUN npm run build -- --configuration production
 
 # Etapa 2: Servidor Web Nginx
 FROM nginx:alpine
+
+# Certificado autofirmado (necesario para que MSAL tenga acceso a la Web Crypto API,
+# que el navegador solo expone en contextos seguros: HTTPS o localhost)
+RUN apk add --no-cache openssl && \
+    mkdir -p /etc/nginx/ssl && \
+    openssl req -x509 -nodes -days 365 -newkey rsa:2048 \
+      -keyout /etc/nginx/ssl/selfsigned.key \
+      -out /etc/nginx/ssl/selfsigned.crt \
+      -subj "/CN=pidealtoke.local"
+
 # Reemplaza la configuración por defecto de Nginx con la configuración SPA
 COPY nginx.conf /etc/nginx/conf.d/default.conf
 # Copia los archivos estáticos compilados de Angular (quedan dentro de /browser en Angular 17+)
 COPY --from=build /app/dist/pidealtoke-frontend/browser /usr/share/nginx/html
 
-EXPOSE 80
+EXPOSE 80 443
 CMD ["nginx", "-g", "daemon off;"]

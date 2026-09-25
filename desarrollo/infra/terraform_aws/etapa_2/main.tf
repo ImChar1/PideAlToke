@@ -113,7 +113,7 @@ resource "aws_instance" "ec2_frontend" {
     aws ecr get-login-password --region ${var.aws_region} | docker login --username AWS --password-stdin ${var.aws_account_id}.dkr.ecr.${var.aws_region}.amazonaws.com
 
     docker pull ${var.aws_account_id}.dkr.ecr.${var.aws_region}.amazonaws.com/${var.ecr_frontend_repo}:latest
-    docker run -d -p 80:80 --name frontend-container ${var.aws_account_id}.dkr.ecr.${var.aws_region}.amazonaws.com/${var.ecr_frontend_repo}:latest
+    docker run -d -p 80:80 -p 443:443 --name frontend-container ${var.aws_account_id}.dkr.ecr.${var.aws_region}.amazonaws.com/${var.ecr_frontend_repo}:latest
 EOF
 }
 

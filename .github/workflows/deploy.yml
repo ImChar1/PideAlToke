@@ -151,7 +151,7 @@ jobs:
               "docker pull ${{ steps.login-ecr.outputs.registry }}/${{ secrets.ECR_FRONTEND_REPO }}:latest",
               "docker stop frontend-container || true",
               "docker rm frontend-container || true",
-              "docker run -d -p 80:80 --name frontend-container ${{ steps.login-ecr.outputs.registry }}/${{ secrets.ECR_FRONTEND_REPO }}:latest"
+              "docker run -d -p 80:80 -p 443:443 --name frontend-container ${{ steps.login-ecr.outputs.registry }}/${{ secrets.ECR_FRONTEND_REPO }}:latest"
             ]'
 
           aws ssm send-command \
@@ -187,4 +187,3 @@ jobs:
           echo "### 🚀 ¡Despliegue Integrado Exitoso!" >> $GITHUB_STEP_SUMMARY
           echo "**🌐 Enlace Frontend:** http://${{ env.FRONTEND_PUBLIC_IP }}" >> $GITHUB_STEP_SUMMARY
           echo "**🔗 API Gateway Endpoint:** ${{ env.API_GATEWAY_ENDPOINT }}" >> $GITHUB_STEP_SUMMARY 
-          

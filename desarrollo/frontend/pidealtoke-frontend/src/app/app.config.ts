@@ -27,7 +27,10 @@ export function MSALInstanceFactory(): IPublicClientApplication {
     auth: {
       clientId: environment.azure.clientId,
       authority: environment.azure.authority,
-      redirectUri: environment.azure.redirectUri
+      // Se calcula en tiempo de ejecución (funciona igual en localhost:4200
+      // que en la IP pública de turno, sin tocar código en cada deploy)
+      redirectUri: window.location.origin,
+      postLogoutRedirectUri: window.location.origin
     },
     cache: {
       cacheLocation: 'localStorage'
