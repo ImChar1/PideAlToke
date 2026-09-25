@@ -187,3 +187,4 @@ jobs:
           echo "### 🚀 ¡Despliegue Integrado Exitoso!" >> $GITHUB_STEP_SUMMARY
           echo "**🌐 Enlace Frontend:** http://${{ env.FRONTEND_PUBLIC_IP }}" >> $GITHUB_STEP_SUMMARY
           echo "**🔗 API Gateway Endpoint:** ${{ env.API_GATEWAY_ENDPOINT }}" >> $GITHUB_STEP_SUMMARY 
+          
