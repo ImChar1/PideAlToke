@@ -1,0 +1,176 @@
+.auth-shell {
+  display: flex;
+  min-height: 100vh;
+  font-family: system-ui, -apple-system, sans-serif;
+}
+
+/* ---------- Panel izquierdo (showcase) ---------- */
+
+.auth-showcase {
+  flex: 1.1;
+  background: #1A1A1A;
+  position: relative;
+  display: flex;
+  align-items: center;
+  padding: 3rem;
+  overflow: hidden;
+}
+
+.showcase-content {
+  position: relative;
+  z-index: 2;
+  max-width: 480px;
+}
+
+.showcase-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.6rem;
+  color: #FFFFFF;
+  font-weight: 700;
+  font-size: 1.05rem;
+  margin-bottom: 2.5rem;
+}
+
+.brand-mark {
+  width: 30px;
+  height: 30px;
+  border-radius: 8px;
+  background: #FF6B35;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.95rem;
+}
+
+.auth-showcase h1 {
+  color: #FFFFFF;
+  font-size: 2.3rem;
+  line-height: 1.25;
+  margin: 0 0 1rem;
+}
+
+.auth-showcase p {
+  color: #C9CCD3;
+  font-size: 1.02rem;
+  line-height: 1.5;
+  margin: 0 0 2.5rem;
+}
+
+.showcase-stats {
+  display: flex;
+  gap: 2.5rem;
+}
+
+.showcase-stats div {
+  display: flex;
+  flex-direction: column;
+}
+
+.showcase-stats strong {
+  color: #FF9D6E;
+  font-size: 1.6rem;
+  font-weight: 800;
+}
+
+.showcase-stats span {
+  color: #9AA0AC;
+  font-size: 0.82rem;
+  margin-top: 0.2rem;
+}
+
+.showcase-blob {
+  position: absolute;
+  border-radius: 50%;
+  z-index: 1;
+}
+
+.showcase-blob--1 {
+  width: 420px;
+  height: 420px;
+  background: radial-gradient(circle, rgba(255, 107, 53, 0.35), transparent 70%);
+  top: -120px;
+  right: -140px;
+}
+
+.showcase-blob--2 {
+  width: 320px;
+  height: 320px;
+  background: radial-gradient(circle, rgba(47, 158, 68, 0.25), transparent 70%);
+  bottom: -100px;
+  left: -80px;
+}
+
+/* ---------- Panel derecho (form) ---------- */
+
+.auth-panel {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: #FFFFFF;
+  padding: 2rem;
+}
+
+.auth-card {
+  width: 100%;
+  max-width: 380px;
+  text-align: center;
+}
+
+.auth-card h2 {
+  color: #1A1A1A;
+  font-size: 1.6rem;
+  margin: 0 0 0.6rem;
+}
+
+.subtitle {
+  color: #4A4A4A;
+  font-size: 0.95rem;
+  margin-bottom: 2.25rem;
+}
+
+.btn-microsoft {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  width: 100%;
+  padding: 0.9rem 1.5rem;
+  border: 1px solid #E5E7EB;
+  border-radius: 10px;
+  background-color: #FFFFFF;
+  color: #1A1A1A;
+  font-weight: 700;
+  font-size: 0.95rem;
+  cursor: pointer;
+  transition: background-color 0.15s ease, border-color 0.15s ease;
+}
+
+.btn-microsoft:hover {
+  background-color: #F8F9FA;
+  border-color: #C9CCD3;
+}
+
+.auth-footer {
+  margin-top: 1.75rem;
+  font-size: 0.9rem;
+  color: #4A4A4A;
+}
+
+.link-auth {
+  color: #FF6B35;
+  text-decoration: none;
+  font-weight: 700;
+  margin-left: 0.4rem;
+}
+
+.link-auth:hover {
+  text-decoration: underline;
+}
+
+@media (max-width: 900px) {
+  .auth-showcase {
+    display: none;
+  }
+}

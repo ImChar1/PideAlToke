@@ -1,0 +1,81 @@
+<div class="dashboard">
+
+  <section class="hero">
+    <div class="hero-text">
+      <span class="hero-kicker">Bienvenido de vuelta</span>
+      <h1>Hola, {{ nombre() }} 👋</h1>
+      <p>Esto es lo que está pasando hoy en PideAlToke.</p>
+    </div>
+    <a routerLink="/catalogo" class="btn-cta">Ver catálogo</a>
+  </section>
+
+  <section class="stats-grid">
+    <div class="stat-card">
+      <div class="stat-icon stat-icon--orange">
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#FFFFFF" stroke-width="2">
+          <path d="M20 7H4a1 1 0 0 0-1 1v1.5a1 1 0 0 0 1 1h16a1 1 0 0 0 1-1V8a1 1 0 0 0-1-1Z"/>
+          <path d="M5 10.5V19a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1v-8.5"/>
+          <path d="M9.5 14h5"/>
+        </svg>
+      </div>
+      <div class="stat-body">
+        <span class="stat-value">{{ totalProductos() ?? '—' }}</span>
+        <span class="stat-label">Productos en catálogo</span>
+      </div>
+    </div>
+
+    <div class="stat-card">
+      <div class="stat-icon" [class.stat-icon--red]="(totalBajoStock() ?? 0) > 0" [class.stat-icon--green]="(totalBajoStock() ?? 0) === 0">
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#FFFFFF" stroke-width="2">
+          <path d="M12 9v4"/><path d="M12 17h.01"/>
+          <path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0Z"/>
+        </svg>
+      </div>
+      <div class="stat-body">
+        <span class="stat-value">{{ totalBajoStock() ?? '—' }}</span>
+        <span class="stat-label">Alertas de stock bajo</span>
+      </div>
+    </div>
+
+    <div class="stat-card">
+      <div class="stat-icon stat-icon--dark">
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#FFFFFF" stroke-width="2">
+          <circle cx="12" cy="8" r="4"/>
+          <path d="M4 21c0-4 4-6 8-6s8 2 8 6"/>
+        </svg>
+      </div>
+      <div class="stat-body">
+        <span class="stat-value" [class.stat-value--admin]="esAdmin()">{{ perfil()?.rol ?? '—' }}</span>
+        <span class="stat-label">Rol de tu cuenta</span>
+      </div>
+    </div>
+  </section>
+
+  <section class="profile-card">
+    <h2>Mi cuenta</h2>
+
+    @if (perfil(); as p) {
+      <div class="profile-grid">
+        <div class="profile-item">
+          <span class="profile-label">Correo</span>
+          <span class="profile-value">{{ p.email }}</span>
+        </div>
+        <div class="profile-item">
+          <span class="profile-label">Rol</span>
+          <span class="rol-pill" [class.rol-pill--admin]="esAdmin()">{{ p.rol }}</span>
+        </div>
+        <div class="profile-item">
+          <span class="profile-label">Estado de la cuenta</span>
+          <span class="estado-pill" [class.inactivo]="!p.activo">{{ p.activo ? 'Activa' : 'Inactiva' }}</span>
+        </div>
+        <div class="profile-item">
+          <span class="profile-label">Cliente desde</span>
+          <span class="profile-value">{{ p.fecha_creacion | date:'d MMMM y' }}</span>
+        </div>
+      </div>
+    } @else {
+      <p class="profile-loading">Cargando información de tu cuenta…</p>
+    }
+  </section>
+
+</div>

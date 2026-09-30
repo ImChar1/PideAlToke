@@ -1,0 +1,9 @@
+fastapi
+uvicorn
+sqlalchemy
+pymysql
+cryptography
+PyJWT[crypto]
+pydantic-settings
+httpx
+requests

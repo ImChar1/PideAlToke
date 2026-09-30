@@ -1,0 +1,110 @@
+<div class="pedidos-page">
+
+  @if (pedidoConfirmado(); as pedido) {
+    <div class="confirmacion">
+      <div class="confirmacion-icon">
+        <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="#FFFFFF" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M20 6 9 17l-5-5"/>
+        </svg>
+      </div>
+      <h2>¡Pedido confirmado!</h2>
+      <p class="confirmacion-sub">Tu pedido fue recibido y está siendo procesado.</p>
+
+      <div class="resumen-card">
+        <div class="resumen-row">
+          <span>N° de pedido</span>
+          <strong>#{{ pedido.id }}</strong>
+        </div>
+        <div class="resumen-row">
+          <span>Estado</span>
+          <span class="estado-pill">{{ pedido.estado }}</span>
+        </div>
+        <div class="resumen-row total-row">
+          <span>Total pagado</span>
+          <strong>{{ pedido.monto_total | currency:'CLP':'symbol-narrow':'1.0-0' }}</strong>
+        </div>
+      </div>
+
+      <ul class="items-confirmados">
+        @for (item of pedido.items; track item.sku) {
+          <li>
+            <span>{{ item.cantidad }} × {{ item.sku }}</span>
+            <span>{{ (item.cantidad * item.precio_unitario) | currency:'CLP':'symbol-narrow':'1.0-0' }}</span>
+          </li>
+        }
+      </ul>
+
+      <div class="confirmacion-actions">
+        <a routerLink="/catalogo" class="btn-secundario">Volver al catálogo</a>
+        <button class="btn-cta" (click)="nuevoPedido()">Hacer otro pedido</button>
+      </div>
+    </div>
+
+  } @else if (items().length === 0) {
+    <div class="carrito-vacio">
+      <svg width="64" height="64" viewBox="0 0 24 24" fill="none" stroke="#C4C9D2" stroke-width="1.5">
+        <circle cx="9" cy="21" r="1"/><circle cx="20" cy="21" r="1"/>
+        <path d="M1 1h4l2.68 13.39a2 2 0 0 0 2 1.61h9.72a2 2 0 0 0 2-1.61L23 6H6"/>
+      </svg>
+      <h2>Tu carrito está vacío</h2>
+      <p>Agrega productos desde el catálogo para armar tu pedido.</p>
+      <a routerLink="/catalogo" class="btn-cta">Ir al catálogo</a>
+    </div>
+
+  } @else {
+    <div class="pedidos-header">
+      <h2>Tu Pedido</h2>
+      <span class="badge">{{ items().length }} producto(s)</span>
+    </div>
+
+    @if (error()) {
+      <div class="error-banner">{{ error() }}</div>
+    }
+
+    <div class="pedidos-layout">
+      <div class="items-list">
+        @for (item of items(); track item.producto.id) {
+          <div class="item-row">
+            <div class="item-info">
+              <span class="item-nombre">{{ item.producto.nombre }}</span>
+              <span class="item-sku">SKU: {{ item.producto.sku }}</span>
+            </div>
+
+            <div class="item-stepper">
+              <button (click)="decrementar(item.producto)" aria-label="Quitar uno">−</button>
+              <span>{{ item.cantidad }}</span>
+              <button (click)="incrementar(item.producto)" aria-label="Agregar uno">+</button>
+            </div>
+
+            <span class="item-precio-unit">{{ item.producto.precio | currency:'CLP':'symbol-narrow':'1.0-0' }} c/u</span>
+
+            <span class="item-subtotal">{{ (item.producto.precio * item.cantidad) | currency:'CLP':'symbol-narrow':'1.0-0' }}</span>
+
+            <button class="btn-quitar" (click)="quitar(item.producto)" aria-label="Eliminar producto">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
+                <path d="M3 6h18"/><path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/>
+                <path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/>
+              </svg>
+            </button>
+          </div>
+        }
+      </div>
+
+      <aside class="resumen-sidebar">
+        <h3>Resumen</h3>
+        <div class="resumen-row">
+          <span>Subtotal</span>
+          <span>{{ total() | currency:'CLP':'symbol-narrow':'1.0-0' }}</span>
+        </div>
+        <div class="resumen-row total-row">
+          <span>Total</span>
+          <strong>{{ total() | currency:'CLP':'symbol-narrow':'1.0-0' }}</strong>
+        </div>
+        <button class="btn-cta btn-full" [disabled]="enviando()" (click)="confirmarPedido()">
+          @if (enviando()) { Procesando... } @else { Confirmar Pedido }
+        </button>
+      </aside>
+    </div>
+  }
+
+</div>

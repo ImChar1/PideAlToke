@@ -1,0 +1,103 @@
+version: '3.8'
+
+services:
+  db:
+    image: mariadb:11.2
+    container_name: pidealtoke-db
+    restart: always
+    environment:
+      MARIADB_ROOT_PASSWORD: ${DB_ROOT_PASSWORD}
+      MARIADB_DATABASE: ${DB_NAME_USUARIOS}
+    ports:
+      - "${PORT_DB}:3306"
+    volumes:
+      - mariadb_data:/var/lib/mysql
+      - ./init-db:/docker-entrypoint-initdb.d
+    healthcheck:
+      test: ["CMD-SHELL", "mariadb-admin ping -h 127.0.0.1 -u root -p$MARIADB_ROOT_PASSWORD || exit 1"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+      start_period: 20s
+
+  ms-usuarios:
+    build: ./backend/ms-usuarios
+    container_name: ms-usuarios
+    ports:
+      - "${PORT_MS_USUARIOS}:8000"
+    environment:
+      DATABASE_URL: mysql+pymysql://root:${DB_ROOT_PASSWORD}@${DB_HOST}:${DB_PORT}/${DB_NAME_USUARIOS}
+      AZURE_TENANT_ID: ${AZURE_TENANT_ID}
+      AZURE_CLIENT_ID: ${AZURE_CLIENT_ID}
+    depends_on:
+      db:
+        condition: service_healthy
+
+  ms-catalogo:
+    build: ./backend/ms-catalogo
+    container_name: ms-catalogo
+    ports:
+      - "${PORT_MS_CATALOGO}:8000"
+    environment:
+      DATABASE_URL: mysql+pymysql://root:${DB_ROOT_PASSWORD}@${DB_HOST}:${DB_PORT}/${DB_NAME_CATALOGO}
+      AZURE_TENANT_ID: ${AZURE_TENANT_ID}
+      AZURE_CLIENT_ID: ${AZURE_CLIENT_ID}
+    depends_on:
+      db:
+        condition: service_healthy
+
+  ms-inventario:
+    build: ./backend/ms-inventario
+    container_name: ms-inventario
+    ports:
+      - "${PORT_MS_INVENTARIO}:8000"
+    environment:
+      DATABASE_URL: mysql+pymysql://root:${DB_ROOT_PASSWORD}@${DB_HOST}:${DB_PORT}/${DB_NAME_INVENTARIO}
+      AZURE_TENANT_ID: ${AZURE_TENANT_ID}
+      AZURE_CLIENT_ID: ${AZURE_CLIENT_ID}
+    depends_on:
+      db:
+        condition: service_healthy
+
+  ms-pedidos:
+    build: ./backend/ms-pedidos
+    container_name: ms-pedidos
+    ports:
+      - "${PORT_MS_PEDIDOS}:8000"
+    environment:
+      DATABASE_URL: mysql+pymysql://root:${DB_ROOT_PASSWORD}@${DB_HOST}:${DB_PORT}/${DB_NAME_PEDIDOS}
+      AZURE_TENANT_ID: ${AZURE_TENANT_ID}
+      AZURE_CLIENT_ID: ${AZURE_CLIENT_ID}
+      INVENTARIO_SERVICE_URL: http://ms-inventario:8000
+    depends_on:
+      db:
+        condition: service_healthy
+      ms-inventario:
+        condition: service_started
+
+  gateway:
+    image: nginx:alpine
+    container_name: pidealtoke-gateway
+    ports:
+      - "${PORT_GATEWAY}:80"
+    volumes:
+      - ./infra/local-gateway.conf:/etc/nginx/conf.d/default.conf:ro
+    depends_on:
+      - ms-usuarios
+      - ms-catalogo
+      - ms-inventario
+      - ms-pedidos
+
+  frontend:
+    build:
+      context: ./frontend/pidealtoke-frontend
+      args:
+        API_GATEWAY_URL: http://localhost:${PORT_GATEWAY}
+    container_name: app-frontend
+    ports:
+      - "${PORT_FRONTEND}:80"
+    depends_on:
+      - gateway
+
+volumes:
+  mariadb_data:
