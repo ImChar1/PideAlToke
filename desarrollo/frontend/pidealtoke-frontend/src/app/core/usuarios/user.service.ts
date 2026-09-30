@@ -1,15 +1,16 @@
 import { Injectable, inject } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
 import { Observable } from 'rxjs';
+import { environment } from '../../../environments/environment';
 
 @Injectable({
   providedIn: 'root'
 })
 export class UserService {
   private http = inject(HttpClient);
+  private apiUrl = `${environment.apiGatewayUrl}/api/v1/users`;
 
-  // Llama al microservicio de usuarios en el puerto 8001
   getUserProfile(): Observable<any> {
-    return this.http.get('http://localhost:8001/api/v1/users/me');
+    return this.http.get(`${this.apiUrl}/me`);
   }
 }

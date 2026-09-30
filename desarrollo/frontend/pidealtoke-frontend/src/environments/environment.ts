@@ -6,5 +6,5 @@ export const environment = {
     authority: 'https://login.microsoftonline.com/ea69d1fe-64a8-46fa-a274-47a2f05244ad',
     redirectUri: 'http://localhost:4200'
   },
-  apiGatewayUrl: 'http://localhost:8000' // Se actualizará con AWS API Gateway
+  apiGatewayUrl: 'http://localhost:8080' // Se actualizará con AWS API Gateway
 };

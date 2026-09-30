@@ -11,11 +11,11 @@ app = FastAPI(title="Microservicio de Pedidos - PideAltoke")
 # Configuración de CORS
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:4200"],
-    allow_credentials=True,
+    allow_origins=["*"],
+    allow_credentials=False,
     allow_methods=["*"],
     allow_headers=["*"],
-)
+) 
 
 # Controladores
 app.include_router(pedidos_router.router, prefix="/api/v1")
