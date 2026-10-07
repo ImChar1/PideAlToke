@@ -55,6 +55,7 @@ services:
       DATABASE_URL: mysql+pymysql://root:${DB_ROOT_PASSWORD}@${DB_HOST}:${DB_PORT}/${DB_NAME_INVENTARIO}
       AZURE_TENANT_ID: ${AZURE_TENANT_ID}
       AZURE_CLIENT_ID: ${AZURE_CLIENT_ID}
+      INTERNAL_API_KEY: ${INTERNAL_API_KEY}
     depends_on:
       db:
         condition: service_healthy
@@ -69,10 +70,14 @@ services:
       AZURE_TENANT_ID: ${AZURE_TENANT_ID}
       AZURE_CLIENT_ID: ${AZURE_CLIENT_ID}
       INVENTARIO_SERVICE_URL: http://ms-inventario:8000
+      CATALOGO_SERVICE_URL: http://ms-catalogo:8000
+      INTERNAL_API_KEY: ${INTERNAL_API_KEY}
     depends_on:
       db:
         condition: service_healthy
       ms-inventario:
+        condition: service_started
+      ms-catalogo:
         condition: service_started
 
   gateway:

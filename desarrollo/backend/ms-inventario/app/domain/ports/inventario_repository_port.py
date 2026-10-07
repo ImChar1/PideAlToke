@@ -23,11 +23,33 @@ class InventarioRepositoryPort(ABC):
         pass
 
     @abstractmethod
-    def ajustar_cantidades(self, sku: str, delta_disponible: int, delta_reservada: int):
+    def ajustar_cantidades(
+        self,
+        sku: str,
+        delta_disponible: int,
+        delta_reservada: int,
+        min_vendible: Optional[int] = None,
+        min_reservada: Optional[int] = None,
+    ):
         """
-        Aplica un ajuste atomico sobre cantidad_disponible y cantidad_reservada
-        (los deltas pueden ser negativos). Devuelve el registro actualizado o
-        None si el sku no existe.
+        Aplica un ajuste ATOMICO (una sola sentencia UPDATE condicional) sobre
+        cantidad_disponible y cantidad_reservada; los deltas pueden ser negativos.
+
+        Las guardas se evaluan en la misma sentencia que el ajuste, asi dos peticiones
+        concurrentes no pueden pasar ambas la validacion (sin sobreventa):
+          - min_vendible:  solo aplica si (disponible - reservada) >= min_vendible
+          - min_reservada: solo aplica si reservada >= min_reservada
+
+        Devuelve el registro actualizado, o None si no se aplico (el sku no existe
+        o no se cumplio una guarda).
+        """
+        pass
+
+    @abstractmethod
+    def liberar_reserva(self, sku: str, cantidad: int):
+        """
+        Resta `cantidad` de cantidad_reservada de forma atomica, sin bajar de 0.
+        Devuelve el registro actualizado o None si el sku no existe.
         """
         pass
 

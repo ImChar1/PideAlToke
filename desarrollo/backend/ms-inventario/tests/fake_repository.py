@@ -41,12 +41,25 @@ class FakeInventarioRepository(InventarioRepositoryPort):
             ]
         return registros
 
-    def ajustar_cantidades(self, sku: str, delta_disponible: int, delta_reservada: int):
+    def ajustar_cantidades(self, sku: str, delta_disponible: int, delta_reservada: int,
+                           min_vendible: Optional[int] = None, min_reservada: Optional[int] = None):
         registro = self._data.get(sku)
         if not registro:
             return None
+        if min_vendible is not None and (registro.cantidad_disponible - registro.cantidad_reservada) < min_vendible:
+            return None
+        if min_reservada is not None and registro.cantidad_reservada < min_reservada:
+            return None
         registro.cantidad_disponible += delta_disponible
         registro.cantidad_reservada += delta_reservada
+        registro.fecha_actualizacion = datetime.now(timezone.utc)
+        return registro
+
+    def liberar_reserva(self, sku: str, cantidad: int):
+        registro = self._data.get(sku)
+        if not registro:
+            return None
+        registro.cantidad_reservada = max(0, registro.cantidad_reservada - cantidad)
         registro.fecha_actualizacion = datetime.now(timezone.utc)
         return registro
 

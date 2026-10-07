@@ -1,4 +1,4 @@
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, computed_field
 from typing import Optional
 from datetime import datetime
 
@@ -23,3 +23,9 @@ class InventarioResponseSchema(BaseModel):
     umbral_minimo: Optional[int]
     fecha_creacion: datetime
     fecha_actualizacion: Optional[datetime] = None
+
+    # Stock que realmente se puede vender ahora: disponible menos lo ya reservado.
+    @computed_field
+    @property
+    def stock_vendible(self) -> int:
+        return self.cantidad_disponible - self.cantidad_reservada

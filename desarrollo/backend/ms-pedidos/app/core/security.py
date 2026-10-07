@@ -1,6 +1,6 @@
 import jwt
 from jwt import PyJWKClient, ExpiredSignatureError, InvalidTokenError
-from fastapi import HTTPException, Security, status
+from fastapi import Depends, HTTPException, Security, status
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from app.core.config import settings
 
@@ -35,3 +35,14 @@ def validar_jwt(credentials: HTTPAuthorizationCredentials = Security(security_sc
 
 def obtener_token_bearer(credentials: HTTPAuthorizationCredentials = Security(security_scheme)) -> str:
     return credentials.credentials
+
+
+def requerir_rol(rol_requerido: str):
+    def role_checker(claims: dict = Depends(validar_jwt)):
+        if rol_requerido not in (claims.get("roles") or []):
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail=f"Requiere el rol: {rol_requerido}",
+            )
+        return claims
+    return role_checker

@@ -13,4 +13,9 @@ class Settings(BaseSettings):
     AZURE_TENANT_ID: str = ""
     AZURE_CLIENT_ID: str = ""
 
+    # Clave compartida SOLO entre microservicios (ms-pedidos -> ms-inventario).
+    # Protege reservar / liberar / confirmar-salida: si queda vacia, esos endpoints
+    # rechazan todo (falla cerrado) en vez de quedar abiertos por un olvido.
+    INTERNAL_API_KEY: str = ""
+
 settings = Settings()

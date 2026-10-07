@@ -98,3 +98,16 @@ def test_listar_bajo_umbral(service):
     resultado = service.listar_inventario(solo_bajo_umbral=True)
     assert len(resultado) == 1
     assert resultado[0].sku == "BAJO"
+
+
+def test_stock_insuficiente_informa_el_vendible_real(service):
+    service.crear_inventario({"sku": "COMBO-001", "cantidad_disponible": 10})
+    service.reservar_stock("COMBO-001", 8)
+    with pytest.raises(StockInsuficienteError, match="disponible=2, solicitado=5"):
+        service.reservar_stock("COMBO-001", 5)
+
+
+def test_liberar_mas_de_lo_reservado_deja_la_reserva_en_cero(service):
+    service.crear_inventario({"sku": "COMBO-001", "cantidad_disponible": 10})
+    service.reservar_stock("COMBO-001", 2)
+    assert service.liberar_stock("COMBO-001", 50).cantidad_reservada == 0

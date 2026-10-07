@@ -175,6 +175,7 @@ resource "aws_instance" "ec2_backend" {
           DATABASE_URL: mysql+pymysql://root:${var.db_password}@${aws_instance.ec2_db.private_ip}:3306/inventario_db
           AZURE_TENANT_ID: ${var.azure_tenant_id}
           AZURE_CLIENT_ID: ${var.azure_client_id}
+          INTERNAL_API_KEY: ${var.internal_api_key}
         restart: always
 
       ms-pedidos:
@@ -185,6 +186,12 @@ resource "aws_instance" "ec2_backend" {
           DATABASE_URL: mysql+pymysql://root:${var.db_password}@${aws_instance.ec2_db.private_ip}:3306/pedidos_db
           AZURE_TENANT_ID: ${var.azure_tenant_id}
           AZURE_CLIENT_ID: ${var.azure_client_id}
+          INVENTARIO_SERVICE_URL: http://ms-inventario:8000
+          CATALOGO_SERVICE_URL: http://ms-catalogo:8000
+          INTERNAL_API_KEY: ${var.internal_api_key}
+        depends_on:
+          - ms-inventario
+          - ms-catalogo
         restart: always
     DC_EOF
 
@@ -297,6 +304,32 @@ resource "aws_instance" "ec2_db" {
     ('PROD-POS-003', 'Churros con Dulce de Leche', '6 churros crujientes espolvoreados con azucar y canela', 2990.00, 'Postres', 1),
     ('PROD-PROM-001', 'Combo Pareja Burger', '2 Hamburguesas completas + 1 Papa Frita Grande + 2 Bebidas 500ml', 15990.00, 'Promociones', 1),
     ('PROD-PROM-002', 'Pack Pizza & Acompanamiento', '1 Pizza Familiar a eleccion + 1 Aros de Cebolla + 1 Bebida 1.5L', 18990.00, 'Promociones', 1);
+
+    -- Stock inicial: un registro de inventario por cada SKU del catalogo.
+    -- Sin esto, ms-pedidos no puede reservar stock (ms-inventario responde 404).
+    USE inventario_db;
+
+    INSERT INTO inventario (sku, cantidad_disponible, cantidad_reservada, umbral_minimo) VALUES
+    ('PROD-HAMB-001', 50, 0, 10),
+    ('PROD-HAMB-002', 40, 0, 10),
+    ('PROD-PIZZ-001', 30, 0, 10),
+    ('PROD-PIZZ-002', 30, 0, 10),
+    ('PROD-PIZZ-003', 25, 0, 5),
+    ('PROD-BEB-001', 80, 0, 10),
+    ('PROD-BEB-002', 60, 0, 10),
+    ('PROD-BEB-003', 45, 0, 10),
+    ('PROD-PAP-001', 70, 0, 10),
+    ('PROD-PAP-002', 55, 0, 10),
+    ('PROD-ACOM-001', 60, 0, 10),
+    ('PROD-ACOM-002', 50, 0, 10),
+    ('PROD-SAND-001', 35, 0, 10),
+    ('PROD-SAND-002', 35, 0, 10),
+    ('PROD-SAND-003', 40, 0, 10),
+    ('PROD-POS-001', 30, 0, 10),
+    ('PROD-POS-002', 30, 0, 10),
+    ('PROD-POS-003', 45, 0, 10),
+    ('PROD-PROM-001', 20, 0, 5),
+    ('PROD-PROM-002', 20, 0, 5);
     SQL_EOF
 
     docker run -d \

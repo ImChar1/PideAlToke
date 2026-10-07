@@ -72,3 +72,14 @@ variable "db_name" {
   description = "Nombre de la base de datos principal"
   default     = "pidealtoke_db"
 }
+
+variable "internal_api_key" {
+  type        = string
+  description = "Clave compartida entre ms-pedidos y ms-inventario para los movimientos de stock internos"
+  sensitive   = true
+
+  validation {
+    condition     = length(var.internal_api_key) >= 16
+    error_message = "internal_api_key debe tener al menos 16 caracteres (usa un valor aleatorio)."
+  }
+}

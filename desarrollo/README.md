@@ -146,3 +146,19 @@ docker compose up --build
 ## 9. Qué NO cubre esta guía
 
 Esto es solo para desarrollo local. Para desplegar a AWS (Terraform + ECR + EC2 + API Gateway) el flujo es distinto y corre automáticamente vía GitHub Actions al pushear a la rama `release/1.0` (`.github/workflows/deploy.yml`). La configuración de Terraform para AWS y Azure vive en `desarrollo/infra/terraform_aws/` y `desarrollo/infra/terraform_azure/`, y no se ejecuta como parte de este flujo local.
+
+## Seguridad entre microservicios (INTERNAL_API_KEY)
+
+Los movimientos de stock `reservar`, `liberar` y `confirmar-salida` de `ms-inventario` son de uso
+interno: solo `ms-pedidos` puede llamarlos, enviando el header `X-Internal-Key`. Un usuario con JWT
+valido pero sin esa clave recibe 403.
+
+- **Local:** define `INTERNAL_API_KEY` en tu `.env` (ver `.env.example`). Debe llegar igual a `ms-inventario` y `ms-pedidos` (el compose ya lo hace).
+- **AWS / CI:** crea el secreto de GitHub `INTERNAL_API_KEY` (minimo 16 caracteres, aleatorio). El workflow lo pasa a Terraform (`internal_api_key`).
+- Si la variable queda vacia, `ms-inventario` rechaza esos endpoints (falla cerrado).
+
+## Ciclo de vida de un pedido
+
+`PENDIENTE` (stock reservado) → `CONFIRMADO` (`POST /pedidos/{id}/confirmar`, rol ADMIN, descuenta stock en firme)
+o `CANCELADO` (`POST /pedidos/{id}/cancelar`, dueño o ADMIN, libera la reserva).
+El precio de cada item sale de `ms-catalogo` y el cliente del JWT; el body solo lleva `sku` y `cantidad`.

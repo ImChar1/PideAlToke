@@ -21,7 +21,7 @@ from app.schemas.schema_inventario import (
     ActualizarUmbralSchema,
     InventarioResponseSchema,
 )
-from app.core.security import validar_jwt, requerir_rol
+from app.core.security import validar_jwt, requerir_rol, requerir_clave_interna
 
 router = APIRouter(prefix="/inventario", tags=["Inventario"])
 
@@ -50,6 +50,7 @@ def _manejar_errores_dominio(func):
 
 # --- Lectura: cualquier usuario/microservicio autenticado ---
 
+@router.get("", response_model=List[InventarioResponseSchema], include_in_schema=False)
 @router.get("/", response_model=List[InventarioResponseSchema])
 def listar_inventario(
     bajo_umbral: bool = False,
@@ -71,6 +72,7 @@ def obtener_inventario(
 
 # --- Escritura administrativa: alta de inventario y ajuste de umbral (rol ADMIN) ---
 
+@router.post("", response_model=InventarioResponseSchema, status_code=status.HTTP_201_CREATED, include_in_schema=False)
 @router.post("/", response_model=InventarioResponseSchema, status_code=status.HTTP_201_CREATED)
 @_manejar_errores_dominio
 def crear_inventario(
@@ -103,9 +105,10 @@ def reponer_stock(
     return service.reponer_stock(sku, payload.cantidad)
 
 
-# --- Movimientos de stock por flujo de Pedidos: requieren token valido ---
-# (en produccion, restringir ademas por resource policy del API Gateway a
-# llamadas internas desde ms-pedidos, no exponerlo directo al frontend)
+# --- Movimientos de stock por flujo de Pedidos: USO INTERNO ---
+# Requieren token valido (propagacion de identidad) Y la clave interna entre
+# microservicios (header X-Internal-Key). Un cliente con solo su JWT recibe 403,
+# asi no puede reservar/liberar stock a mano desde el gateway.
 
 @router.post("/{sku}/reservar", response_model=InventarioResponseSchema)
 @_manejar_errores_dominio
@@ -114,6 +117,7 @@ def reservar_stock(
     payload: MovimientoStockSchema,
     service: InventarioService = Depends(get_service),
     _claims: dict = Depends(validar_jwt),
+    _interno: None = Depends(requerir_clave_interna),
 ):
     return service.reservar_stock(sku, payload.cantidad)
 
@@ -125,6 +129,7 @@ def liberar_stock(
     payload: MovimientoStockSchema,
     service: InventarioService = Depends(get_service),
     _claims: dict = Depends(validar_jwt),
+    _interno: None = Depends(requerir_clave_interna),
 ):
     return service.liberar_stock(sku, payload.cantidad)
 
@@ -136,5 +141,6 @@ def confirmar_salida(
     payload: MovimientoStockSchema,
     service: InventarioService = Depends(get_service),
     _claims: dict = Depends(validar_jwt),
+    _interno: None = Depends(requerir_clave_interna),
 ):
     return service.confirmar_salida(sku, payload.cantidad)

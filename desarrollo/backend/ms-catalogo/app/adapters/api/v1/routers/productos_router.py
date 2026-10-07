@@ -29,6 +29,7 @@ def get_service(db: Session = Depends(get_db)) -> ProductoService:
 
 # --- Lectura: publica para cualquier usuario autenticado (rol minimo) ---
 
+@router.get("", response_model=List[ProductoResponseSchema], include_in_schema=False)
 @router.get("/", response_model=List[ProductoResponseSchema])
 def listar_productos(
     categoria: Optional[str] = None,
@@ -36,6 +37,21 @@ def listar_productos(
     _claims: dict = Depends(validar_jwt),
 ):
     return service.listar_productos(categoria=categoria)
+
+
+# Consulta por SKU: la usa ms-pedidos para tomar el PRECIO REAL del catalogo (el precio
+# nunca debe venir del cliente). Devuelve tambien productos inactivos (campo "activo")
+# para que el llamador decida; ms-pedidos los rechaza.
+@router.get("/sku/{sku}", response_model=ProductoResponseSchema)
+def obtener_producto_por_sku(
+    sku: str,
+    service: ProductoService = Depends(get_service),
+    _claims: dict = Depends(validar_jwt),
+):
+    try:
+        return service.obtener_producto_por_sku(sku)
+    except ProductoNoEncontradoError as e:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(e))
 
 
 @router.get("/{producto_id}", response_model=ProductoResponseSchema)
@@ -52,6 +68,7 @@ def obtener_producto(
 
 # --- Escritura: requiere rol ADMIN (mantencion del catalogo) ---
 
+@router.post("", response_model=ProductoResponseSchema, status_code=status.HTTP_201_CREATED, include_in_schema=False)
 @router.post("/", response_model=ProductoResponseSchema, status_code=status.HTTP_201_CREATED)
 def crear_producto(
     payload: CrearProductoSchema,

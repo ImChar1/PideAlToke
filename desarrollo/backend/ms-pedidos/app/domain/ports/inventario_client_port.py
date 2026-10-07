@@ -24,3 +24,8 @@ class InventarioClientPort(ABC):
     def liberar_stock(self, sku: str, cantidad: int) -> dict:
         """Libera una reserva previa (usado como compensacion si el pedido falla)."""
         pass
+
+    @abstractmethod
+    def confirmar_salida(self, sku: str, cantidad: int) -> dict:
+        """Confirma la salida: el stock reservado se descuenta en firme del disponible."""
+        pass

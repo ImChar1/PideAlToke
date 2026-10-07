@@ -31,6 +31,12 @@ class ProductoService:
             raise ProductoNoEncontradoError(f"Producto {producto_id} no encontrado")
         return producto
 
+    def obtener_producto_por_sku(self, sku: str):
+        producto = self.repository.obtener_por_sku(sku)
+        if not producto:
+            raise ProductoNoEncontradoError(f"Producto con SKU '{sku}' no encontrado")
+        return producto
+
     def listar_productos(self, categoria: Optional[str] = None) -> List:
         return self.repository.listar(categoria=categoria)
 

@@ -1,6 +1,9 @@
+import secrets
+from typing import Optional
+
 import jwt
 from jwt import PyJWKClient, ExpiredSignatureError, InvalidTokenError
-from fastapi import HTTPException, Security, status, Depends
+from fastapi import HTTPException, Security, status, Depends, Header
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from app.core.config import settings
 
@@ -43,3 +46,19 @@ def requerir_rol(rol_requerido: str):
             )
         return claims
     return role_checker
+
+
+def requerir_clave_interna(x_internal_key: Optional[str] = Header(default=None)) -> None:
+    """
+    Los movimientos de stock por flujo de pedidos (reservar / liberar / confirmar-salida)
+    son de uso interno: solo ms-pedidos debe llamarlos. Un usuario con JWT valido pero
+    sin esta clave NO puede invocarlos (evita que un cliente agote el stock reservando).
+    """
+    esperada = settings.INTERNAL_API_KEY
+    if not esperada or not x_internal_key or not secrets.compare_digest(
+        x_internal_key.encode(), esperada.encode()
+    ):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Endpoint de uso interno entre microservicios.",
+        )

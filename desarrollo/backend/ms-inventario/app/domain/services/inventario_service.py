@@ -49,24 +49,30 @@ class InventarioService:
 
     def reservar_stock(self, sku: str, cantidad: int):
         self._validar_cantidad_positiva(cantidad)
-        registro = self.obtener_inventario(sku)
+        self.obtener_inventario(sku)  # 404 si no existe
 
-        stock_vendible = registro.cantidad_disponible - registro.cantidad_reservada
-        if cantidad > stock_vendible:
+        # La validacion de stock vendible y el ajuste son UNA operacion atomica en el
+        # repositorio: sin ventana entre "comprobar" y "reservar" (sin sobreventa).
+        resultado = self.repository.ajustar_cantidades(
+            sku, delta_disponible=0, delta_reservada=cantidad, min_vendible=cantidad
+        )
+        if resultado is None:
+            registro = self.obtener_inventario(sku)
+            vendible = registro.cantidad_disponible - registro.cantidad_reservada
             raise StockInsuficienteError(
-                f"Stock insuficiente para '{sku}': disponible={stock_vendible}, solicitado={cantidad}"
+                f"Stock insuficiente para '{sku}': disponible={vendible}, solicitado={cantidad}"
             )
-        return self.repository.ajustar_cantidades(sku, delta_disponible=0, delta_reservada=cantidad)
+        return resultado
 
     def liberar_stock(self, sku: str, cantidad: int):
         """Revierte una reserva previa (ej. el pedido asociado se cancelo)."""
         self._validar_cantidad_positiva(cantidad)
-        registro = self.obtener_inventario(sku)
+        self.obtener_inventario(sku)  # 404 si no existe
 
-        cantidad_a_liberar = min(cantidad, registro.cantidad_reservada)
-        return self.repository.ajustar_cantidades(
-            sku, delta_disponible=0, delta_reservada=-cantidad_a_liberar
-        )
+        resultado = self.repository.liberar_reserva(sku, cantidad)
+        if resultado is None:
+            raise InventarioNoEncontradoError(f"No hay inventario para el SKU '{sku}'")
+        return resultado
 
     def confirmar_salida(self, sku: str, cantidad: int):
         """
@@ -74,22 +80,27 @@ class InventarioService:
         de cantidad_disponible, y deja de estar reservado.
         """
         self._validar_cantidad_positiva(cantidad)
-        registro = self.obtener_inventario(sku)
+        self.obtener_inventario(sku)  # 404 si no existe
 
-        if cantidad > registro.cantidad_reservada:
+        resultado = self.repository.ajustar_cantidades(
+            sku, delta_disponible=-cantidad, delta_reservada=-cantidad, min_reservada=cantidad
+        )
+        if resultado is None:
+            registro = self.obtener_inventario(sku)
             raise StockInsuficienteError(
                 f"No se puede confirmar salida de {cantidad} unidades para '{sku}': "
                 f"solo hay {registro.cantidad_reservada} reservadas"
             )
-        return self.repository.ajustar_cantidades(
-            sku, delta_disponible=-cantidad, delta_reservada=-cantidad
-        )
+        return resultado
 
     def reponer_stock(self, sku: str, cantidad: int):
         """Ingreso de nueva mercaderia: aumenta el stock disponible."""
         self._validar_cantidad_positiva(cantidad)
         self.obtener_inventario(sku)  # valida que exista
-        return self.repository.ajustar_cantidades(sku, delta_disponible=cantidad, delta_reservada=0)
+        resultado = self.repository.ajustar_cantidades(sku, delta_disponible=cantidad, delta_reservada=0)
+        if resultado is None:
+            raise InventarioNoEncontradoError(f"No hay inventario para el SKU '{sku}'")
+        return resultado
 
     def actualizar_umbral(self, sku: str, umbral_minimo: int):
         self.obtener_inventario(sku)  # valida que exista

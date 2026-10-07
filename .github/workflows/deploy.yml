@@ -74,6 +74,7 @@ jobs:
           TF_VAR_ecr_backend_repo: ${{ secrets.ECR_BACKEND_REPO }}
           TF_VAR_db_password: ${{ secrets.DB_PASSWORD }}
           TF_VAR_db_name: ${{ secrets.DB_NAME }}
+          TF_VAR_internal_api_key: ${{ secrets.INTERNAL_API_KEY }}
         run: |
           terraform init
           terraform apply -auto-approve
@@ -96,6 +97,7 @@ jobs:
           TF_VAR_ecr_backend_repo: ${{ secrets.ECR_BACKEND_REPO }}
           TF_VAR_db_password: ${{ secrets.DB_PASSWORD }}
           TF_VAR_db_name: ${{ secrets.DB_NAME }}
+          TF_VAR_internal_api_key: ${{ secrets.INTERNAL_API_KEY }}
         run: terraform destroy -auto-approve
 
       # --- CONSTRUCCIÓN Y DESPLIEGUE DOCKER ---
@@ -170,6 +172,7 @@ jobs:
               "DB_NAME_CATALOGO=${{ secrets.DB_NAME_CATALOGO }}",
               "DB_NAME_INVENTARIO=${{ secrets.DB_NAME_INVENTARIO }}",
               "DB_NAME_PEDIDOS=${{ secrets.DB_NAME_PEDIDOS }}",
+              "INTERNAL_API_KEY=${{ secrets.INTERNAL_API_KEY }}",
               "PORT_DB=3306",
               "PORT_MS_USUARIOS=8001",
               "PORT_MS_CATALOGO=8002",

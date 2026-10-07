@@ -21,3 +21,29 @@ INSERT INTO productos (sku, nombre, descripcion, precio, categoria, activo) VALU
 ('PROD-POS-003', 'Churros con Dulce de Leche', '6 churros crujientes espolvoreados con azúcar y canela', 2990.00, 'Postres', 1),
 ('PROD-PROM-001', 'Combo Pareja Burger', '2 Hamburguesas completas + 1 Papa Frita Grande + 2 Bebidas 500ml', 15990.00, 'Promociones', 1),
 ('PROD-PROM-002', 'Pack Pizza & Acompañamiento', '1 Pizza Familiar a elección + 1 Aros de Cebolla + 1 Bebida 1.5L', 18990.00, 'Promociones', 1);
+
+-- Stock inicial: un registro de inventario por cada SKU del catalogo.
+-- Sin esto, ms-pedidos no puede reservar stock (ms-inventario responde 404).
+USE inventario_db;
+
+INSERT INTO inventario (sku, cantidad_disponible, cantidad_reservada, umbral_minimo) VALUES
+('PROD-HAMB-001', 50, 0, 10),
+('PROD-HAMB-002', 40, 0, 10),
+('PROD-PIZZ-001', 30, 0, 10),
+('PROD-PIZZ-002', 30, 0, 10),
+('PROD-PIZZ-003', 25, 0, 5),
+('PROD-BEB-001', 80, 0, 10),
+('PROD-BEB-002', 60, 0, 10),
+('PROD-BEB-003', 45, 0, 10),
+('PROD-PAP-001', 70, 0, 10),
+('PROD-PAP-002', 55, 0, 10),
+('PROD-ACOM-001', 60, 0, 10),
+('PROD-ACOM-002', 50, 0, 10),
+('PROD-SAND-001', 35, 0, 10),
+('PROD-SAND-002', 35, 0, 10),
+('PROD-SAND-003', 40, 0, 10),
+('PROD-POS-001', 30, 0, 10),
+('PROD-POS-002', 30, 0, 10),
+('PROD-POS-003', 45, 0, 10),
+('PROD-PROM-001', 20, 0, 5),
+('PROD-PROM-002', 20, 0, 5);
