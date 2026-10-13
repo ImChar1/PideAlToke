@@ -6,7 +6,7 @@
 # se LIBERA la reserva; si el pedido se confirma/paga, se CONFIRMA LA SALIDA
 # (ahi si se descuenta cantidad_disponible en firme).
 
-from typing import List, Optional
+from typing import List
 
 from app.domain.ports.inventario_repository_port import InventarioRepositoryPort
 

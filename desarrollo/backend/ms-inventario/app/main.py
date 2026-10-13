@@ -1,12 +1,30 @@
+from contextlib import asynccontextmanager
+
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from app.core.config import settings
 from app.infrastructure.db.session import Base, engine
 from app.adapters.api.v1.routers import inventario_router
+from app.adapters.messaging.pedido_eventos_handler import manejar_evento_pedido
+from app.infrastructure.messaging.rabbitmq_consumer import ConsumerConfig, ConsumerManager
 
 # Crear las tablas en la db si no existen para desarrollo local
 Base.metadata.create_all(bind=engine)
 
-app = FastAPI(title="Microservicio de Inventario - PideAltoke")
+@asynccontextmanager
+async def lifespan(_app: FastAPI):
+    # Los consumidores de RabbitMQ corren en hilos propios: se levantan con la app y se detienen
+    # al apagarla. Con RABBITMQ_ENABLED=false (por defecto) no se toca el broker para nada.
+    consumidores = None
+    if settings.RABBITMQ_ENABLED:
+        consumidores = ConsumerManager(ConsumerConfig.desde_settings(settings), manejar_evento_pedido)
+        consumidores.iniciar()
+    yield
+    if consumidores is not None:
+        consumidores.detener()
+
+
+app = FastAPI(title="Microservicio de Inventario - PideAltoke", lifespan=lifespan)
 
 # Configuración de CORS
 app.add_middleware(

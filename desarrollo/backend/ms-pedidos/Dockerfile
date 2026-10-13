@@ -6,13 +6,12 @@ ENV PYTHONUNBUFFERED=1
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
-# Copiar el codigo de la aplicacion
+# Copiar SOLO el codigo de la aplicacion (nada de .env, bases locales ni tests)
 COPY app ./app
 
-# El Security Group "sg-backend" (infra/terraform/etapa_2) abre el puerto 8080
+# El contenedor escucha en el 8000; docker-compose / Terraform lo publican en 8001-8004
 EXPOSE 8000
 
-# Variables de entorno (DATABASE_URL, AZURE_TENANT_ID, AZURE_CLIENT_ID) se inyectan
-# en tiempo de ejecucion (docker run --env-file .env / ECS task definition), nunca
-# se hornean dentro de la imagen.
+# Variables de entorno (DATABASE_URL, AZURE_TENANT_ID, AZURE_CLIENT_ID, ...) se inyectan
+# en tiempo de ejecucion (docker compose / Terraform), nunca se hornean dentro de la imagen.
 CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]

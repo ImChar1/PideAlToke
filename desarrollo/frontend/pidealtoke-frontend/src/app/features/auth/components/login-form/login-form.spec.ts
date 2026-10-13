@@ -1,6 +1,7 @@
 import { TestBed } from '@angular/core/testing';
 import { MsalService } from '@azure/msal-angular';
 import { LoginForm } from './login-form';
+import { environment } from '../../../../../environments/environment';
 
 describe('LoginForm', () => {
   const loginRedirect = vi.fn();
@@ -29,5 +30,6 @@ describe('LoginForm', () => {
     await Promise.resolve();
     expect(msalMock.instance.initialize).toHaveBeenCalled();
     expect(loginRedirect).toHaveBeenCalledTimes(1);
+    expect(loginRedirect).toHaveBeenCalledWith({ scopes: [environment.azure.apiScope] });
   });
 });

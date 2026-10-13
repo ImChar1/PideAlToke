@@ -11,6 +11,16 @@ provider "aws" {
   region = var.aws_region
 }
 
+# Contrasena de BD distinta por microservicio, derivada de db_password (secreto de CI):
+# no hace falta crear 4 secretos nuevos y ningun servicio usa la clave de root.
+# Solo hex (0-9a-f): segura dentro de URLs de conexion y de scripts de shell.
+locals {
+  db_pass = {
+    for servicio in ["usuarios", "catalogo", "inventario", "pedidos"] :
+    servicio => substr(sha256("${var.db_password}:${servicio}"), 0, 32)
+  }
+}
+
 # 0. DATA SOURCES (AMI Dinámica)
 data "aws_ami" "amazon_linux_2023" {
   most_recent = true
@@ -50,6 +60,13 @@ resource "aws_security_group" "sg_frontend" {
   }
 }
 
+# NOTA DE SEGURIDAD (backend): este API Gateway es un HTTP API SIN VPC Link, asi que llega al
+# backend por su IP publica y un Security Group no puede limitar el origen a "API Gateway":
+# estos puertos quedan abiertos a Internet. Controles compensatorios:
+#   - cada microservicio valida el JWT de Entra ID (firma, issuer y audience), no confia en el gateway;
+#   - los endpoints internos de stock (reservar/liberar/confirmar-salida) exigen X-Internal-Key.
+# Para cerrarlos de verdad: mover el backend a la subred privada y usar un VPC Link con un
+# NLB/ALB interno (si la cuenta lo permite; en AWS Academy Learner Lab suele estar restringido).
 resource "aws_security_group" "sg_backend" {
   name_prefix   = "backend-sg"
   vpc_id = var.vpc_id
@@ -152,7 +169,7 @@ resource "aws_instance" "ec2_backend" {
         ports:
           - "8001:8000"
         environment:
-          DATABASE_URL: mysql+pymysql://root:${var.db_password}@${aws_instance.ec2_db.private_ip}:3306/usuarios_db
+          DATABASE_URL: mysql+pymysql://svc_usuarios:${local.db_pass.usuarios}@${aws_instance.ec2_db.private_ip}:3306/usuarios_db
           AZURE_TENANT_ID: ${var.azure_tenant_id}
           AZURE_CLIENT_ID: ${var.azure_client_id}
         restart: always
@@ -162,7 +179,7 @@ resource "aws_instance" "ec2_backend" {
         ports:
           - "8002:8000"
         environment:
-          DATABASE_URL: mysql+pymysql://root:${var.db_password}@${aws_instance.ec2_db.private_ip}:3306/catalogo_db
+          DATABASE_URL: mysql+pymysql://svc_catalogo:${local.db_pass.catalogo}@${aws_instance.ec2_db.private_ip}:3306/catalogo_db
           AZURE_TENANT_ID: ${var.azure_tenant_id}
           AZURE_CLIENT_ID: ${var.azure_client_id}
         restart: always
@@ -172,7 +189,7 @@ resource "aws_instance" "ec2_backend" {
         ports:
           - "8003:8000"
         environment:
-          DATABASE_URL: mysql+pymysql://root:${var.db_password}@${aws_instance.ec2_db.private_ip}:3306/inventario_db
+          DATABASE_URL: mysql+pymysql://svc_inventario:${local.db_pass.inventario}@${aws_instance.ec2_db.private_ip}:3306/inventario_db
           AZURE_TENANT_ID: ${var.azure_tenant_id}
           AZURE_CLIENT_ID: ${var.azure_client_id}
           INTERNAL_API_KEY: ${var.internal_api_key}
@@ -183,7 +200,7 @@ resource "aws_instance" "ec2_backend" {
         ports:
           - "8004:8000"
         environment:
-          DATABASE_URL: mysql+pymysql://root:${var.db_password}@${aws_instance.ec2_db.private_ip}:3306/pedidos_db
+          DATABASE_URL: mysql+pymysql://svc_pedidos:${local.db_pass.pedidos}@${aws_instance.ec2_db.private_ip}:3306/pedidos_db
           AZURE_TENANT_ID: ${var.azure_tenant_id}
           AZURE_CLIENT_ID: ${var.azure_client_id}
           INVENTARIO_SERVICE_URL: http://ms-inventario:8000
@@ -222,115 +239,20 @@ resource "aws_instance" "ec2_db" {
     mkdir -p /var/lib/mariadb_data
     mkdir -p /home/ec2-user/init-db
 
+    # El esquema, el seed y el script de usuarios se leen de /init-db (UNICA fuente de verdad,
+    # la misma que usa docker compose en local): antes estaban copiados aqui y ya divergian.
     cat << 'SQL_EOF' > /home/ec2-user/init-db/init-01.sql
-    CREATE DATABASE IF NOT EXISTS usuarios_db CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
-    CREATE DATABASE IF NOT EXISTS pedidos_db CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
-    CREATE DATABASE IF NOT EXISTS inventario_db CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
-    CREATE DATABASE IF NOT EXISTS catalogo_db CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
-
-    USE usuarios_db;
-    CREATE TABLE IF NOT EXISTS usuarios (
-        id INT AUTO_INCREMENT PRIMARY KEY,
-        azure_oid VARCHAR(100) NOT NULL UNIQUE,
-        email VARCHAR(150) UNIQUE,
-        rol VARCHAR(50) NOT NULL DEFAULT 'CLIENTE',
-        activo BOOLEAN DEFAULT TRUE,
-        fecha_creacion DATETIME DEFAULT CURRENT_TIMESTAMP,
-        INDEX idx_usuarios_azure_oid (azure_oid)
-    );
-
-    USE pedidos_db;
-    CREATE TABLE IF NOT EXISTS pedidos (
-        id INT AUTO_INCREMENT PRIMARY KEY,
-        cliente_id VARCHAR(100) NOT NULL,
-        monto_total DECIMAL(10, 2) NOT NULL,
-        estado VARCHAR(50) NOT NULL DEFAULT 'PENDIENTE',
-        items JSON NOT NULL,
-        fecha_creacion DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-        INDEX idx_pedidos_cliente_id (cliente_id)
-    );
-
-    USE inventario_db;
-    CREATE TABLE IF NOT EXISTS inventario (
-        id INT AUTO_INCREMENT PRIMARY KEY,
-        sku VARCHAR(50) NOT NULL UNIQUE,
-        cantidad_disponible INT NOT NULL DEFAULT 0,
-        cantidad_reservada INT NOT NULL DEFAULT 0,
-        umbral_minimo INT NULL,
-        fecha_creacion DATETIME DEFAULT CURRENT_TIMESTAMP,
-        fecha_actualizacion DATETIME NULL ON UPDATE CURRENT_TIMESTAMP,
-        INDEX idx_inventario_sku (sku)
-    );
-
-    USE catalogo_db;
-    CREATE TABLE IF NOT EXISTS productos (
-        id INT AUTO_INCREMENT PRIMARY KEY,
-        sku VARCHAR(50) NOT NULL UNIQUE,
-        nombre VARCHAR(150) NOT NULL,
-        descripcion VARCHAR(500) NULL,
-        precio DECIMAL(10, 2) NOT NULL,
-        categoria VARCHAR(100) NULL,
-        imagen_url VARCHAR(300) NULL,
-        activo BOOLEAN NOT NULL DEFAULT TRUE,
-        fecha_creacion DATETIME DEFAULT CURRENT_TIMESTAMP,
-        fecha_actualizacion DATETIME NULL ON UPDATE CURRENT_TIMESTAMP,
-        INDEX idx_productos_sku (sku),
-        INDEX idx_productos_nombre (nombre),
-        INDEX idx_productos_categoria (categoria)
-    );
+    ${file("${path.module}/../../../init-db/init-01.sql")}
     SQL_EOF
 
     cat << 'SQL_EOF' > /home/ec2-user/init-db/init-02-seed.sql
-    USE catalogo_db;
-
-    INSERT INTO productos (sku, nombre, descripcion, precio, categoria, activo) VALUES
-    ('PROD-HAMB-001', 'Hamburguesa Completa', 'Doble carne, queso cheddar, tocino y salsa especial', 6990.00, 'Comida Rapida', 1),
-    ('PROD-HAMB-002', 'Hamburguesa Vegana', 'Medallon de garbanzos, palta, tomate y mayonesa vegana', 7490.00, 'Comida Rapida', 1),
-    ('PROD-PIZZ-001', 'Pizza Pepperoni Familiar', 'Masa artesanal, salsa de tomate, queso mozzarella y pepperoni', 11990.00, 'Pizzas', 1),
-    ('PROD-PIZZ-002', 'Pizza Napolitana Individual', 'Salsa de tomate, queso mozzarella, tomate fresco y oregano', 6490.00, 'Pizzas', 1),
-    ('PROD-PIZZ-003', 'Pizza Cuatro Quesos Mediana', 'Mozzarella, gouda, queso azul y parmesano sobre salsa blanca', 9990.00, 'Pizzas', 1),
-    ('PROD-BEB-001', 'Bebida Limo 1.5L', 'Bebida gaseosa sabor limon', 2200.00, 'Bebidas', 1),
-    ('PROD-BEB-002', 'Jugo Natural Naranja 500ml', 'Jugo de naranja recien exprimido sin azucar anadida', 2800.00, 'Bebidas', 1),
-    ('PROD-BEB-003', 'Cerveza Artesanal IPA 330ml', 'Cerveza artesanal de amargor moderado y notas citricas', 3500.00, 'Bebidas', 1),
-    ('PROD-PAP-001', 'Papas Fritas Grandes', 'Papas corte tradicional crujientes con sal marina', 3490.00, 'Acompanamientos', 1),
-    ('PROD-PAP-002', 'Papas Supremas', 'Papas fritas cubiertas con salsa de queso cheddar y tocino crujiente', 4990.00, 'Acompanamientos', 1),
-    ('PROD-ACOM-001', 'Empanadas de Queso (3 uds)', 'Empanadas fritas rellenas de queso mozzarella derretido', 2990.00, 'Acompanamientos', 1),
-    ('PROD-ACOM-002', 'Aros de Cebolla', 'Aros de cebolla empanizados y crujientes con salsa BBQ', 3200.00, 'Acompanamientos', 1),
-    ('PROD-SAND-001', 'Churrasco Italiano', 'Lomo de vacuno, abundante palta, tomate y mayonesa casera', 6200.00, 'Sandwiches', 1),
-    ('PROD-SAND-002', 'Lomo Luco', 'Lomo de vacuno a la plancha con queso mantecoso derretido', 5900.00, 'Sandwiches', 1),
-    ('PROD-SAND-003', 'Club Sandwich Pollo', 'Pechuga de pollo, lechuga, tomate, huevo duro, tocino y mayo', 6500.00, 'Sandwiches', 1),
-    ('PROD-POS-001', 'Brownie con Helado', 'Brownie caliente de chocolate con una bola de helado de vainilla', 3800.00, 'Postres', 1),
-    ('PROD-POS-002', 'Cheesecake de Frutilla', 'Pastel de queso crema sobre base de galleta con mermelada de frutilla', 3900.00, 'Postres', 1),
-    ('PROD-POS-003', 'Churros con Dulce de Leche', '6 churros crujientes espolvoreados con azucar y canela', 2990.00, 'Postres', 1),
-    ('PROD-PROM-001', 'Combo Pareja Burger', '2 Hamburguesas completas + 1 Papa Frita Grande + 2 Bebidas 500ml', 15990.00, 'Promociones', 1),
-    ('PROD-PROM-002', 'Pack Pizza & Acompanamiento', '1 Pizza Familiar a eleccion + 1 Aros de Cebolla + 1 Bebida 1.5L', 18990.00, 'Promociones', 1);
-
-    -- Stock inicial: un registro de inventario por cada SKU del catalogo.
-    -- Sin esto, ms-pedidos no puede reservar stock (ms-inventario responde 404).
-    USE inventario_db;
-
-    INSERT INTO inventario (sku, cantidad_disponible, cantidad_reservada, umbral_minimo) VALUES
-    ('PROD-HAMB-001', 50, 0, 10),
-    ('PROD-HAMB-002', 40, 0, 10),
-    ('PROD-PIZZ-001', 30, 0, 10),
-    ('PROD-PIZZ-002', 30, 0, 10),
-    ('PROD-PIZZ-003', 25, 0, 5),
-    ('PROD-BEB-001', 80, 0, 10),
-    ('PROD-BEB-002', 60, 0, 10),
-    ('PROD-BEB-003', 45, 0, 10),
-    ('PROD-PAP-001', 70, 0, 10),
-    ('PROD-PAP-002', 55, 0, 10),
-    ('PROD-ACOM-001', 60, 0, 10),
-    ('PROD-ACOM-002', 50, 0, 10),
-    ('PROD-SAND-001', 35, 0, 10),
-    ('PROD-SAND-002', 35, 0, 10),
-    ('PROD-SAND-003', 40, 0, 10),
-    ('PROD-POS-001', 30, 0, 10),
-    ('PROD-POS-002', 30, 0, 10),
-    ('PROD-POS-003', 45, 0, 10),
-    ('PROD-PROM-001', 20, 0, 5),
-    ('PROD-PROM-002', 20, 0, 5);
+    ${file("${path.module}/../../../init-db/init-02-seed.sql")}
     SQL_EOF
+
+    cat << 'SH_EOF' > /home/ec2-user/init-db/init-03-users.sh
+    ${file("${path.module}/../../../init-db/init-03-users.sh")}
+    SH_EOF
+    chmod +x /home/ec2-user/init-db/init-03-users.sh
 
     docker run -d \
       --name pidealtoke-db \
@@ -338,6 +260,10 @@ resource "aws_instance" "ec2_db" {
       -v /var/lib/mariadb_data:/var/lib/mysql \
       -v /home/ec2-user/init-db:/docker-entrypoint-initdb.d \
       -e MYSQL_ROOT_PASSWORD=${var.db_password} \
+      -e DB_PASS_USUARIOS=${local.db_pass.usuarios} \
+      -e DB_PASS_CATALOGO=${local.db_pass.catalogo} \
+      -e DB_PASS_INVENTARIO=${local.db_pass.inventario} \
+      -e DB_PASS_PEDIDOS=${local.db_pass.pedidos} \
       --restart always \
       mariadb:11.2
 EOF
@@ -365,7 +291,9 @@ resource "aws_apigatewayv2_authorizer" "jwt_auth" {
 
   jwt_configuration {
     issuer   = "https://login.microsoftonline.com/${var.azure_tenant_id}/v2.0"
-    audience = [var.azure_client_id]
+    # Un access token v2 trae aud = <client id>; uno v1 o con identifier URI trae api://<client id>.
+    # El backend acepta ambos, asi que el gateway tambien (antes rechazaba los tokens con api://).
+    audience = [var.azure_client_id, "api://${var.azure_client_id}"]
   }
 }
 

@@ -7,7 +7,7 @@ import { CatalogoService } from '../catalogo/services/catalogo.service';
 import { InventarioService } from '../inventario/services/inventario.service';
 
 interface PerfilUsuario {
-  email: string;
+  email: string | null; // el backend puede no tener correo (token sin email)
   rol: string;
   activo: boolean;
   fecha_creacion: string;

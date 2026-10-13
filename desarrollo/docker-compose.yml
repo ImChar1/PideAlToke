@@ -1,4 +1,12 @@
-version: '3.8'
+# Variables de conexion a RabbitMQ compartidas por ms-pedidos (productor), ms-inventario (consumidor)
+# y ms-mensajeria (administrador). Se inyectan con `<<: *rabbitmq-env` en cada servicio.
+# Los nombres de exchanges/colas NO van aqui: viven en el config.py de cada servicio.
+x-rabbitmq-env: &rabbitmq-env
+  RABBITMQ_ENABLED: "true"
+  RABBITMQ_HOST: rabbitmq          # nombre del servicio en la red de compose
+  RABBITMQ_PORT: "5672"
+  RABBITMQ_USER: ${RABBITMQ_USER:-admin}
+  RABBITMQ_PASSWORD: ${RABBITMQ_PASSWORD:-admin123}
 
 services:
   db:
@@ -8,6 +16,11 @@ services:
     environment:
       MARIADB_ROOT_PASSWORD: ${DB_ROOT_PASSWORD}
       MARIADB_DATABASE: ${DB_NAME_USUARIOS}
+      # Contrasenas de los usuarios por microservicio (las consume init-db/init-03-users.sh)
+      DB_PASS_USUARIOS: ${DB_PASS_USUARIOS:?Falta DB_PASS_USUARIOS en .env}
+      DB_PASS_CATALOGO: ${DB_PASS_CATALOGO:?Falta DB_PASS_CATALOGO en .env}
+      DB_PASS_INVENTARIO: ${DB_PASS_INVENTARIO:?Falta DB_PASS_INVENTARIO en .env}
+      DB_PASS_PEDIDOS: ${DB_PASS_PEDIDOS:?Falta DB_PASS_PEDIDOS en .env}
     ports:
       - "${PORT_DB}:3306"
     volumes:
@@ -20,13 +33,37 @@ services:
       retries: 10
       start_period: 20s
 
+  rabbitmq:
+    image: rabbitmq:3.12-management-alpine
+    container_name: pidealtoke-rabbitmq
+    # Hostname fijo: RabbitMQ guarda sus datos bajo el nombre del nodo (derivado del hostname).
+    # Sin esto, al recrear el contenedor el nodo cambia y "desaparecen" colas y mensajes del volumen.
+    hostname: pidealtoke-rabbitmq
+    restart: always
+    environment:
+      RABBITMQ_DEFAULT_USER: ${RABBITMQ_USER:-admin}
+      RABBITMQ_DEFAULT_PASS: ${RABBITMQ_PASSWORD:-admin123}
+    # Solo en loopback: las credenciales por defecto (admin/admin123) son de desarrollo y no
+    # deben quedar expuestas a la red. Entre contenedores se usa rabbitmq:5672 por la red de compose.
+    ports:
+      - "127.0.0.1:${PORT_RABBITMQ:-5672}:5672"          # AMQP
+      - "127.0.0.1:${PORT_RABBITMQ_UI:-15672}:15672"     # Management UI
+    volumes:
+      - rabbitmq_data:/var/lib/rabbitmq
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "-q", "ping"]
+      interval: 10s
+      timeout: 10s
+      retries: 10
+      start_period: 30s
+
   ms-usuarios:
     build: ./backend/ms-usuarios
     container_name: ms-usuarios
     ports:
       - "${PORT_MS_USUARIOS}:8000"
     environment:
-      DATABASE_URL: mysql+pymysql://root:${DB_ROOT_PASSWORD}@${DB_HOST}:${DB_PORT}/${DB_NAME_USUARIOS}
+      DATABASE_URL: mysql+pymysql://svc_usuarios:${DB_PASS_USUARIOS}@${DB_HOST}:${DB_PORT}/${DB_NAME_USUARIOS}
       AZURE_TENANT_ID: ${AZURE_TENANT_ID}
       AZURE_CLIENT_ID: ${AZURE_CLIENT_ID}
     depends_on:
@@ -39,7 +76,7 @@ services:
     ports:
       - "${PORT_MS_CATALOGO}:8000"
     environment:
-      DATABASE_URL: mysql+pymysql://root:${DB_ROOT_PASSWORD}@${DB_HOST}:${DB_PORT}/${DB_NAME_CATALOGO}
+      DATABASE_URL: mysql+pymysql://svc_catalogo:${DB_PASS_CATALOGO}@${DB_HOST}:${DB_PORT}/${DB_NAME_CATALOGO}
       AZURE_TENANT_ID: ${AZURE_TENANT_ID}
       AZURE_CLIENT_ID: ${AZURE_CLIENT_ID}
     depends_on:
@@ -52,12 +89,15 @@ services:
     ports:
       - "${PORT_MS_INVENTARIO}:8000"
     environment:
-      DATABASE_URL: mysql+pymysql://root:${DB_ROOT_PASSWORD}@${DB_HOST}:${DB_PORT}/${DB_NAME_INVENTARIO}
+      DATABASE_URL: mysql+pymysql://svc_inventario:${DB_PASS_INVENTARIO}@${DB_HOST}:${DB_PORT}/${DB_NAME_INVENTARIO}
       AZURE_TENANT_ID: ${AZURE_TENANT_ID}
       AZURE_CLIENT_ID: ${AZURE_CLIENT_ID}
       INTERNAL_API_KEY: ${INTERNAL_API_KEY}
+      <<: *rabbitmq-env
     depends_on:
       db:
+        condition: service_healthy
+      rabbitmq:
         condition: service_healthy
 
   ms-pedidos:
@@ -66,19 +106,37 @@ services:
     ports:
       - "${PORT_MS_PEDIDOS}:8000"
     environment:
-      DATABASE_URL: mysql+pymysql://root:${DB_ROOT_PASSWORD}@${DB_HOST}:${DB_PORT}/${DB_NAME_PEDIDOS}
+      DATABASE_URL: mysql+pymysql://svc_pedidos:${DB_PASS_PEDIDOS}@${DB_HOST}:${DB_PORT}/${DB_NAME_PEDIDOS}
       AZURE_TENANT_ID: ${AZURE_TENANT_ID}
       AZURE_CLIENT_ID: ${AZURE_CLIENT_ID}
       INVENTARIO_SERVICE_URL: http://ms-inventario:8000
       CATALOGO_SERVICE_URL: http://ms-catalogo:8000
       INTERNAL_API_KEY: ${INTERNAL_API_KEY}
+      <<: *rabbitmq-env
     depends_on:
       db:
+        condition: service_healthy
+      rabbitmq:
         condition: service_healthy
       ms-inventario:
         condition: service_started
       ms-catalogo:
         condition: service_started
+
+  # Administrador de RabbitMQ (colas, exchanges, bindings). Protegido con JWT + rol ADMIN.
+  # No se enruta por el gateway local a proposito: es de uso operativo, no de la app.
+  ms-mensajeria:
+    build: ./backend/ms-mensajeria
+    container_name: ms-mensajeria
+    ports:
+      - "${PORT_MS_MENSAJERIA:-8005}:8000"
+    environment:
+      AZURE_TENANT_ID: ${AZURE_TENANT_ID}
+      AZURE_CLIENT_ID: ${AZURE_CLIENT_ID}
+      <<: *rabbitmq-env
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
 
   gateway:
     image: nginx:alpine
@@ -106,3 +164,4 @@ services:
 
 volumes:
   mariadb_data:
+  rabbitmq_data:

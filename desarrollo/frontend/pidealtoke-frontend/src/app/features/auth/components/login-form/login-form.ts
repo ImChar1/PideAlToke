@@ -1,5 +1,6 @@
 import { Component, inject } from '@angular/core';
 import { MsalService } from '@azure/msal-angular';
+import { environment } from '../../../../../environments/environment';
 
 @Component({
   selector: 'app-login-form',
@@ -12,11 +13,9 @@ export class LoginForm {
   private msalService = inject(MsalService);
 
   login(): void {
-    console.log('---> Clic detectado en el botón de login');
-    
     this.msalService.instance.initialize().then(() => {
       this.msalService.loginRedirect({
-        scopes: ['user.read']
+        scopes: [environment.azure.apiScope]
       });
     }).catch(error => {
       console.error('Error al inicializar MSAL:', error);

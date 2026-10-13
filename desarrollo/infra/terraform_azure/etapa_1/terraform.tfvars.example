@@ -1,0 +1,8 @@
+# Copia este archivo a terraform.tfvars (esta ignorado por git).
+azure_tenant_id = "00000000-0000-0000-0000-000000000000"
+
+# URL del frontend desplegado en AWS (https://<IP publica>), ademas de http://localhost:4200
+extra_redirect_urls = []
+
+# Object IDs de los usuarios que seran ADMIN
+admin_user_object_ids = []

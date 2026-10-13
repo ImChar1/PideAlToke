@@ -23,35 +23,54 @@ El microservicio utiliza **Arquitectura Hexagonal** para desacoplar completament
 
 ---
 
-## 🚀 Componentes Desarrollados en esta Fase
+## 🚀 Qué hace
 
-1. **Configuración Base (`core/config.py` & `infrastructure/db/session.py`)**: Lectura del archivo `.env` y creación de la sesión ORM dinámicamente.
-2. **Entidad Pedido (`domain/models/pedido.py`)**: Mapeo relacional con timestamp compatible mediante `func.now()`. Persiste `items` como JSON (sku, cantidad, precio_unitario) para poder liberar stock reservado si el pedido se cancela.
-3. **DTOs de Transferencia (`schemas/schema_pedido.py`)**: Esquemas de validación para entrada (`CrearPedidoSchema`) y salida (`PedidoResponseSchema`). Los items se identifican por **`sku`** (no por id numérico), para calzar con `ms-catalogo` y `ms-inventario`.
-4. **Puerto y Repositorio (`domain/ports/` & `infrastructure/repositories/`)**: Contrato e implementación concreta utilizando SQLAlchemy.
-5. **Servicio de Dominio (`domain/services/pedido_service.py`)**: Calcula el monto total, **reserva stock en `ms-inventario` item por item**, y si algo falla a mitad de camino, **libera lo ya reservado** (compensación) antes de fallar — el pedido nunca se persiste si no hay stock.
-6. **Cliente HTTP a Inventario (`infrastructure/clients/inventario_client.py` + `domain/ports/inventario_client_port.py`)**: Adaptador de salida (Outbound Adapter) que llama a `POST /inventario/{sku}/reservar` y `/liberar` en `ms-inventario`, **reenviando el JWT del usuario** para propagar la identidad entre microservicios.
-7. **Seguridad JWT (`core/security.py`)**: Validación real contra Azure AD (JWKS, issuer, audience) — antes este archivo estaba vacío y el endpoint no exigía token.
-8. **Enrutador HTTP (`adapters/api/v1/routers/pedidos_router.py`)**: `POST /pedidos/` (crea pedido, requiere JWT) y `GET /pedidos/{id}` (consulta).
+Prefijo `/api/v1`. Cada ruta de colección acepta con y sin `/` final.
 
-### 🐛 Bugs corregidos en esta fase
-- `PedidoModel.cleinte_id` (typo) no calzaba con `PedidoModel(cliente_id=...)` en el service → el endpoint de crear pedido nunca había funcionado.
-- `PedidoResponseSchema.Config` estaba mal indentado (fuera de la clase) → faltaba `from_attributes`, necesario para serializar el objeto SQLAlchemy como respuesta.
-- `core/security.py` estaba vacío → el endpoint no validaba JWT en absoluto.
+| Método | Ruta | Requiere | Descripción |
+|---|---|---|---|
+| POST | `/pedidos` | token válido | crea un pedido (reserva stock) |
+| GET | `/pedidos` | token válido | mis pedidos; con `?todos=true` (solo `ADMIN`) los de todos |
+| GET | `/pedidos/{id}` | dueño o `ADMIN` | detalle (un pedido ajeno responde 404) |
+| POST | `/pedidos/{id}/cancelar` | dueño o `ADMIN` | cancela un pedido `PENDIENTE` y **libera** su stock |
+| POST | `/pedidos/{id}/confirmar` | `ADMIN` | confirma un pedido `PENDIENTE` y **descuenta** el stock en firme |
+
+### Qué envía el cliente y qué decide el servidor
+
+El body de `POST /pedidos` solo lleva los items (`sku` y `cantidad`):
+
+```json
+{ "items": [ { "sku": "PROD-HAMB-001", "cantidad": 2 } ] }
+```
+
+- **El precio** de cada item lo toma el servidor de `ms-catalogo` (`GET /productos/sku/{sku}`). Si el body trae `precio_unitario`, se ignora.
+- **El cliente** sale del JWT (`oid`, o `sub`). Si el body trae `cliente_id`, se ignora.
+- Un SKU repetido se consolida en una línea. Un producto inexistente o inactivo responde 422.
+
+### Ciclo de vida
+
+`PENDIENTE` (stock reservado) → `CONFIRMADO` o `CANCELADO`. Confirmar y cancelar son idempotentes y **reintentables**: si `ms-inventario` falla a mitad, el progreso por item queda guardado y al reintentar no se libera ni confirma dos veces lo ya procesado.
+
+### Creación con compensación
+
+1. Se consulta el precio de cada SKU a `ms-catalogo` (falla rápido, antes de reservar nada).
+2. Se reserva stock item por item en `ms-inventario`.
+3. Si algo falla (sin stock, inventario caído, error al guardar), se **libera lo ya reservado** y se propaga el error original; un fallo al compensar se registra en el log pero nunca lo tapa.
+4. Errores: 409 sin stock o estado inválido, 422 producto no disponible, 404 pedido inexistente, 503 si Catálogo o Inventario no responden. Cualquier otro error es un 500 real (antes se convertía en un 400 engañoso).
 
 ---
 
-## 🔗 Integración con ms-inventario
+## 🔗 Integración con otros servicios
 
-Al crear un pedido:
-1. Por cada item, se llama a `POST {INVENTARIO_SERVICE_URL}/inventario/{sku}/reservar`.
-2. Si algún item no tiene stock suficiente (`409`) o el sku no existe (`404`), se libera lo ya reservado en los items anteriores y se responde `409`/`503` al cliente — **el pedido no se crea**.
-3. Solo si todas las reservas se realizan con éxito, el pedido se persiste en estado `PENDIENTE`.
+Variables en `.env` (ver `.env.example`):
 
-Configura la URL de Inventario en `.env`:
 ```
-INVENTARIO_SERVICE_URL="http://localhost:8001"
+INVENTARIO_SERVICE_URL="http://localhost:8003"
+CATALOGO_SERVICE_URL="http://localhost:8002"
+INTERNAL_API_KEY="..."    # debe ser idéntica a la de ms-inventario
 ```
+
+Las llamadas reenvían el **JWT del usuario** (propagación de identidad). Las de stock llevan además `X-Internal-Key`; si `ms-inventario` la rechaza, el error indica revisar `INTERNAL_API_KEY` en ambos servicios.
 
 ---
 
@@ -59,9 +78,10 @@ INVENTARIO_SERVICE_URL="http://localhost:8001"
 
 ```bash
 pip install -r requirements-dev.txt
-pytest
+python -m pytest -q
 ```
-7 tests: reglas de negocio del `PedidoService` (reserva, compensación, cálculo de monto) con fakes en memoria, e integración del router con JWT y cliente de Inventario simulados.
+
+Servicio (precio real, compensación, cancelar/confirmar, reintentos), router con JWT y clientes simulados, y los clientes HTTP de Inventario y Catálogo. Usan una SQLite temporal.
 
 ---
 
@@ -69,15 +89,13 @@ pytest
 
 ```bash
 docker build -t ms-pedidos .
-docker run --env-file .env -p 8080:8080 ms-pedidos
+docker run --env-file .env -p 8004:8000 ms-pedidos
 ```
+
+El contenedor escucha en el **8000**; docker compose y Terraform lo publican en el 8004.
 
 ---
 
-## 🐳 Próxima Etapa: Migración a MariaDB
+## 🔜 Pendiente
 
-Actualmente, el microservicio está preparado para pruebas locales inmediatas usando **SQLite**. Sin embargo, siguiendo los lineamientos de despliegue en producción:
-
-1. **Persistencia en MariaDB**: Se migrará el motor de datos a un contenedor de **MariaDB**, actualizando únicamente las variables del archivo `.env` (`DATABASE_URL="mysql+pymysql://..."`) sin alterar ninguna línea de la lógica de negocio ni del dominio gracias a la Arquitectura Hexagonal.
-2. **Despliegue AWS**: La infraestructura final será provisionada con **Terraform** sobre instancias **AWS EC2** y expuesta públicamente mediante **Amazon API Gateway**.
-3. **Siguiente integración**: conectar con `ms-pagos` para llamar a `confirmar-salida` en Inventario cuando el pago sea aprobado.
+Hoy las llamadas a `ms-catalogo` y `ms-inventario` son **síncronas por HTTP**. `ms-pedidos` ya **publica eventos** de cambio de estado en RabbitMQ (ver README de `desarrollo/`), pero reservar, confirmar y cancelar stock sigue siendo HTTP síncrono. Migrar ese flujo a mensajería queda pendiente (requiere decidir idempotencia y qué ve el cliente cuando no hay stock), y además permitiría expirar reservas de pedidos que nunca se confirman ni se cancelan.

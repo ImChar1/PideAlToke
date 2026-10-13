@@ -23,10 +23,11 @@ Parte del ecosistema Cloud Native **PideAlToke**. Encargado de la consulta y man
 2. **DTOs**: validación de precio > 0, actualización parcial vía `ActualizarProductoSchema`.
 3. **Port + Repository**: CRUD completo (crear, obtener por id/sku, listar con filtro por categoría, actualizar, desactivar).
 4. **Service**: valida SKU duplicado al crear y lanza excepciones de dominio (`ProductoNoEncontradoError`, `SkuDuplicadoError`) que el router traduce a códigos HTTP (404/409).
-5. **Endpoints**:
-   - `GET /productos/` (lista, filtro opcional `?categoria=`)
+5. **Endpoints** (prefijo `/api/v1`; cada ruta de coleccion acepta con y sin `/` final, sin redirect):
+   - `GET /productos` (lista, filtro opcional `?categoria=`)
    - `GET /productos/{id}`
-   - `POST /productos/` (requiere rol `ADMIN`)
+   - `GET /productos/sku/{sku}`: lo usa `ms-pedidos` para tomar el **precio real**; devuelve tambien productos inactivos (campo `activo`)
+   - `POST /productos` (requiere rol `ADMIN`)
    - `PUT /productos/{id}` (requiere rol `ADMIN`)
    - `DELETE /productos/{id}` → desactiva (soft-delete), requiere rol `ADMIN`
 6. **Seguridad JWT (`core/security.py`)**: descarga y cachea JWKS de Azure AD, valida firma RS256, `issuer` y `audience`, y expone `requerir_rol()` para RBAC en endpoints de escritura. Lectura (`GET`) requiere solo un token válido; escritura requiere rol `ADMIN`.
@@ -36,6 +37,7 @@ Parte del ecosistema Cloud Native **PideAlToke**. Encargado de la consulta y man
 ## ▶️ Cómo correrlo localmente
 
 ```bash
+cp .env.example .env     # completa AZURE_TENANT_ID y AZURE_CLIENT_ID (obligatorios)
 pip install -r requirements.txt
 uvicorn app.main:app --reload
 ```
@@ -46,6 +48,22 @@ Luego entra a `http://localhost:8000/docs` para probar los endpoints (Swagger).
 
 ---
 
-## 🐳 Próxima etapa
+## 🧪 Tests
 
-Migración a **MariaDB** vía Docker y despliegue en **AWS EC2** con **Terraform**, expuesto por **Amazon API Gateway** — igual que el resto de los microservicios del proyecto.
+```bash
+pip install -r requirements-dev.txt
+python -m pytest -q
+```
+
+Servicio con repositorio en memoria y endpoints con JWT simulado (`dependency_overrides`), sobre una SQLite temporal.
+
+---
+
+## 🐳 Docker
+
+```bash
+docker build -t ms-catalogo .
+docker run --env-file .env -p 8002:8000 ms-catalogo
+```
+
+El contenedor escucha en el **8000**; docker compose y Terraform lo publican en el 8002.

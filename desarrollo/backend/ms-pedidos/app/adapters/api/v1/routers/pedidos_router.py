@@ -12,6 +12,7 @@ from app.schemas.schema_pedido import CrearPedidoSchema, PedidoResponseSchema
 from app.infrastructure.repositories.pedido_repository import PedidoRepository
 from app.infrastructure.clients.inventario_client import InventarioHttpClient
 from app.infrastructure.clients.catalogo_client import CatalogoHttpClient
+from app.infrastructure.messaging.rabbitmq_publisher import obtener_event_publisher
 from app.domain.services.pedido_service import (
     PedidoService,
     PedidoNoEncontradoError,
@@ -42,6 +43,7 @@ def get_service(
         PedidoRepository(db),
         InventarioHttpClient(token=token),
         CatalogoHttpClient(token=token),
+        obtener_event_publisher(),  # eventos a RabbitMQ (nulo si RABBITMQ_ENABLED=false)
     )
 
 
@@ -71,7 +73,7 @@ def _manejar_errores_dominio(func):
         except (StockInsuficienteError, PedidoEstadoInvalidoError) as e:
             raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=str(e))
         except ProductoNoDisponibleError as e:
-            raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(e))
+            raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_CONTENT, detail=str(e))
         except (InventarioNoDisponibleError, CatalogoNoDisponibleError) as e:
             raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail=str(e))
     return wrapper

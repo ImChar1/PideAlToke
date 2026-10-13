@@ -20,7 +20,7 @@ export const jwtInterceptor: HttpInterceptorFn = (req, next) => {
   if (isApiTarget && account) {
   return from(
     msalService.instance.acquireTokenSilent({
-      scopes: ['api://f3e5ef16-7ccb-4c9f-bfdd-2b965ecec91d/access_as_user'],
+      scopes: [environment.azure.apiScope],
       account: account
     })
   ).pipe(

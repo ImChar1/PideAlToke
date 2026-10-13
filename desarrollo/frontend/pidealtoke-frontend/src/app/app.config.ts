@@ -1,6 +1,6 @@
 import { ApplicationConfig, importProvidersFrom } from '@angular/core';
 import { provideRouter } from '@angular/router';
-import { provideHttpClient, HTTP_INTERCEPTORS, withInterceptors } from '@angular/common/http';
+import { provideHttpClient, withInterceptors } from '@angular/common/http';
 import { routes } from './app.routes';
 import { environment } from '../environments/environment';
 import { 
@@ -9,16 +9,13 @@ import {
   InteractionType,
   Configuration 
 } from '@azure/msal-browser';
-import { 
-  MsalModule, 
-  MsalService, 
-  MsalGuard, 
-  MsalInterceptor, 
-  MSAL_INSTANCE, 
-  MSAL_GUARD_CONFIG, 
-  MSAL_INTERCEPTOR_CONFIG, 
-  MsalGuardConfiguration, 
-  MsalInterceptorConfiguration 
+import {
+  MsalModule,
+  MsalService,
+  MsalGuard,
+  MSAL_INSTANCE,
+  MSAL_GUARD_CONFIG,
+  MsalGuardConfiguration
 } from '@azure/msal-angular';
 import { jwtInterceptor } from './core/interceptors/jwt.interceptor';
 
@@ -44,18 +41,8 @@ export function MSALGuardConfigFactory(): MsalGuardConfiguration {
   return {
     interactionType: InteractionType.Redirect,
     authRequest: {
-      scopes: ['user.read']
+      scopes: [environment.azure.apiScope]
     }
-  };
-}
-
-export function MSALInterceptorConfigFactory(): MsalInterceptorConfiguration {
-  const protectedResourceMap = new Map<string, Array<string>>();
-  protectedResourceMap.set(`${environment.apiGatewayUrl}/*`, ['user.read']);
-
-  return {
-    interactionType: InteractionType.Redirect,
-    protectedResourceMap
   };
 }
 

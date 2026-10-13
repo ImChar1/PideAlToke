@@ -7,7 +7,9 @@ from typing import List
 from app.domain.ports.pedido_repository_port import PedidoRepositoryPort
 from app.domain.ports.inventario_client_port import InventarioClientPort
 from app.domain.ports.catalogo_client_port import CatalogoClientPort
+from app.domain.ports.evento_publisher_port import PedidoEventPublisherPort, NullEventPublisher
 from app.schemas.schema_pedido import CrearPedidoSchema
+from app.schemas.schema_eventos import EventoPedidoSchema
 from app.domain.models.pedido import PedidoModel
 
 logger = logging.getLogger(__name__)
@@ -39,10 +41,13 @@ class PedidoService:
         repository: PedidoRepositoryPort,
         inventario_client: InventarioClientPort,
         catalogo_client: CatalogoClientPort,
+        event_publisher: PedidoEventPublisherPort | None = None,
     ):
         self.repository = repository
         self.inventario_client = inventario_client
         self.catalogo_client = catalogo_client
+        # Opcional: sin publicador (tests, RabbitMQ apagado) no se emite ningun evento.
+        self.event_publisher = event_publisher or NullEventPublisher()
 
     # ------------------------------------------------------------------ crear
 
@@ -80,10 +85,30 @@ class PedidoService:
                 estado=ESTADO_PENDIENTE,
                 items=lineas,
             )
-            return self.repository.guardar(nuevo_pedido)
+            pedido_guardado = self.repository.guardar(nuevo_pedido)
         except Exception:
             self._compensar_reservas(items_reservados)
             raise
+
+        # Fuera del try a proposito: publicar es "mejor esfuerzo" y un fallo del broker NUNCA
+        # debe compensar (liberar) las reservas de un pedido que ya quedo guardado.
+        self._publicar_evento("creado", pedido_guardado)
+        return pedido_guardado
+
+    def _publicar_evento(self, tipo: str, pedido: PedidoModel) -> None:
+        """
+        Notifica el cambio de estado del pedido a otros microservicios (RabbitMQ).
+        NUNCA lanza: el pedido ya esta persistido y un broker caido no puede romper la operacion.
+        Limitacion conocida: sin patron Outbox, un evento puede perderse si el broker esta caido
+        justo ahora (se registra en el log).
+        """
+        try:
+            self.event_publisher.publicar(EventoPedidoSchema.desde_pedido(tipo, pedido))
+        except Exception:
+            logger.exception(
+                "No se pudo publicar el evento '%s' del pedido %s (la operacion se completo igual)",
+                tipo, getattr(pedido, "id", None),
+            )
 
     def _compensar_reservas(self, items_reservados: List[dict]) -> None:
         """
@@ -129,7 +154,9 @@ class PedidoService:
 
         self._cerrar_reservas(pedido, self.inventario_client.liberar_stock, _MARCA_LIBERADO)
         pedido.estado = ESTADO_CANCELADO
-        return self.repository.guardar(pedido)
+        pedido_guardado = self.repository.guardar(pedido)
+        self._publicar_evento("cancelado", pedido_guardado)
+        return pedido_guardado
 
     def confirmar_pedido(self, pedido_id: int) -> PedidoModel:
         """
@@ -148,7 +175,9 @@ class PedidoService:
 
         self._cerrar_reservas(pedido, self.inventario_client.confirmar_salida, _MARCA_CONFIRMADO)
         pedido.estado = ESTADO_CONFIRMADO
-        return self.repository.guardar(pedido)
+        pedido_guardado = self.repository.guardar(pedido)
+        self._publicar_evento("confirmado", pedido_guardado)
+        return pedido_guardado
 
     @staticmethod
     def _exigir_pendiente(pedido: PedidoModel, accion: str) -> None:

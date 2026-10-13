@@ -1,0 +1,9 @@
+fastapi==0.142.2
+uvicorn[standard]==0.54.0
+pydantic-settings==2.15.0
+PyJWT[crypto]==2.10.1
+pika==1.3.2
+# pydantic y python-dotenv ya llegan como dependencias de fastapi / pydantic-settings; se listan con
+# rango (no exacto) para no chocar con las versiones fijadas arriba.
+pydantic>=2.7,<3
+python-dotenv>=1.0,<2

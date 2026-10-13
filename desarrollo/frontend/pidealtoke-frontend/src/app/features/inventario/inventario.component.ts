@@ -54,7 +54,10 @@ export class InventarioComponent implements OnInit {
 
   form: NuevoProductoForm = { ...FORM_VACIO };
 
-  esAdmin = this.authService.isAdmin();
+  // Getter (no un valor fijo): el rol se evalua cada vez, asi no queda desfasado si la sesion cambia.
+  get esAdmin(): boolean {
+    return this.authService.isAdmin();
+  }
 
   esBajoStock = (item: ProductoInventario): boolean =>
     item.umbral_minimo != null && item.cantidad_disponible <= item.umbral_minimo;

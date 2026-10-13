@@ -1,15 +1,19 @@
 import { TestBed } from '@angular/core/testing';
 import { MsalService } from '@azure/msal-angular';
 import { AuthService } from './auth.service';
+import { environment } from '../../../environments/environment';
 
 describe('AuthService', () => {
   let activeAccount: any = null;
   let allAccounts: any[] = [];
+  const loginRedirect = vi.fn();
   const msalMock = {
     instance: {
       getActiveAccount: () => activeAccount,
       getAllAccounts: () => allAccounts,
+      initialize: () => Promise.resolve(),
     },
+    loginRedirect,
   };
 
   let service: AuthService;
@@ -46,5 +50,16 @@ describe('AuthService', () => {
     expect(service.isAdmin()).toBe(false);
     activeAccount = { idTokenClaims: { roles: ['ADMIN'] } };
     expect(service.isAdmin()).toBe(true);
+  });
+
+  it('login pide el scope de la API (el mismo que usa el interceptor), no scopes de Graph', async () => {
+    service.login();
+    await Promise.resolve();
+    await Promise.resolve();
+    expect(loginRedirect).toHaveBeenCalledWith({ scopes: [environment.azure.apiScope] });
+  });
+
+  it('el scope de la API apunta al client id de la app', () => {
+    expect(environment.azure.apiScope).toBe(`api://${environment.azure.clientId}/access_as_user`);
   });
 });

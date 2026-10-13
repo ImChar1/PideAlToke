@@ -1,8 +1,11 @@
+from typing import Optional
 from pydantic import BaseModel, EmailStr, ConfigDict
 from datetime import datetime
 
 class UsuarioBaseSchema(BaseModel):
-    email: EmailStr
+    # Opcional: no todos los tokens de Azure traen un correo (cuentas sin buzon, invitados,
+    # preferred_username con formato de UPN no valido). La identidad real es azure_oid.
+    email: Optional[EmailStr] = None
     rol: str = "CLIENTE"
 
 class CrearUsuarioSchema(UsuarioBaseSchema):

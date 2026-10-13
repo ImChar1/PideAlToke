@@ -34,7 +34,7 @@ resource "aws_subnet" "public" {
   tags = { Name = "public-subnet" }
 }
 
-# Subred Privada para el backend y la BD
+# Subred Privada para la BD (el backend va en la subred publica: API Gateway sin VPC Link lo alcanza por IP publica)
 resource "aws_subnet" "private" {
   vpc_id = aws_vpc.main.id
   cidr_block = var.private_subnet_cidr
@@ -42,7 +42,7 @@ resource "aws_subnet" "private" {
   tags = { Name = "private-subnet" }
 }
 
-# NAT Gateway para que el backend y la DB descarguen imágenes Docker de Internet
+# NAT Gateway para que la DB (subred privada) descargue la imagen de Docker de Internet
 resource "aws_eip" "nat_eip" {
   domain = "vpc"
 }

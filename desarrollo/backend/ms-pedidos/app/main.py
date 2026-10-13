@@ -1,12 +1,22 @@
+from contextlib import asynccontextmanager
+
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from app.infrastructure.db.session import Base, engine
 from app.adapters.api.v1.routers import pedidos_router
+from app.infrastructure.messaging.rabbitmq_publisher import cerrar_event_publisher
 
 # Crear las tablas en la db si no existen para desarrollo local
 Base.metadata.create_all(bind=engine)
 
-app = FastAPI(title="Microservicio de Pedidos - PideAltoke")
+@asynccontextmanager
+async def lifespan(_app: FastAPI):
+    yield
+    # Al apagar: cerrar de forma limpia la conexion del publicador de RabbitMQ (si se abrio).
+    cerrar_event_publisher()
+
+
+app = FastAPI(title="Microservicio de Pedidos - PideAltoke", lifespan=lifespan)
 
 # Configuración de CORS
 app.add_middleware(

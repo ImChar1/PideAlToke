@@ -5,4 +5,14 @@
 *.tfstate
 *.tfstate.*
 *.tfvars
-#
+
+# Python
+__pycache__/
+*.pyc
+.pytest_cache/
+*.db
+
+# Node / Angular
+node_modules/
+.angular/
+dist/

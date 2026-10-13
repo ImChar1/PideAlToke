@@ -24,18 +24,26 @@ Igual que `ms-catalogo`: `core` (config + seguridad JWT, compartida/reutilizada)
 
 ## ✅ Endpoints implementados
 
-| Método | Ruta | Rol requerido | Descripción |
+Prefijo `/api/v1`. Las respuestas incluyen `stock_vendible` (`disponible - reservada`).
+
+| Método | Ruta | Requiere | Descripción |
 |---|---|---|---|
-| GET | `/inventario/` | token válido | lista inventario (`?bajo_umbral=true` filtra alertas) |
+| GET | `/inventario` | token válido | lista inventario (`?bajo_umbral=true` filtra alertas) |
 | GET | `/inventario/{sku}` | token válido | detalle de un producto |
-| POST | `/inventario/` | `ADMIN` | crea el registro de inventario de un producto nuevo |
+| POST | `/inventario` | `ADMIN` | crea el registro de inventario de un producto nuevo |
 | PUT | `/inventario/{sku}/umbral` | `ADMIN` | actualiza el umbral mínimo de alerta |
 | POST | `/inventario/{sku}/reponer` | `ADMIN` | ingreso de mercadería (aumenta disponible) |
-| POST | `/inventario/{sku}/reservar` | token válido | reserva stock (llamado por `ms-pedidos` al crear un pedido) |
-| POST | `/inventario/{sku}/liberar` | token válido | libera una reserva (pedido cancelado) |
-| POST | `/inventario/{sku}/confirmar-salida` | token válido | descuenta stock en firme (pedido pagado) |
+| POST | `/inventario/{sku}/reservar` | token + **clave interna** | reserva stock (lo llama `ms-pedidos` al crear un pedido) |
+| POST | `/inventario/{sku}/liberar` | token + **clave interna** | libera una reserva (pedido cancelado) |
+| POST | `/inventario/{sku}/confirmar-salida` | token + **clave interna** | descuenta stock en firme (pedido confirmado) |
 
-> ⚠️ En producción, `reservar` / `liberar` / `confirmar-salida` deberían restringirse además a llamadas internas desde `ms-pedidos` (resource policy del API Gateway o un rol de servicio dedicado), no exponerse directo al frontend.
+### Uso interno de reservar / liberar / confirmar-salida
+
+Solo `ms-pedidos` puede llamarlos: deben llevar el header `X-Internal-Key` con el valor de `INTERNAL_API_KEY`. Un usuario con JWT válido (incluso ADMIN) pero sin esa clave recibe **403**. Si `INTERNAL_API_KEY` queda vacía, esos endpoints rechazan todo (falla cerrado). El gateway local además los bloquea hacia afuera.
+
+### Sin sobreventa
+
+`reservar`, `confirmar-salida`, `reponer` y `liberar` son **una sola sentencia `UPDATE` condicional** (la guarda de stock y el ajuste son atómicos en la base). Hay tests con hilos concurrentes contra el repositorio real que lo comprueban.
 
 ---
 
@@ -46,13 +54,14 @@ pip install -r requirements-dev.txt
 pytest
 ```
 
-21 tests: reglas de negocio (`test_inventario_service.py`) con repositorio en memoria, e integración de endpoints (`test_inventario_router.py`) con JWT simulado vía `dependency_overrides`.
+Reglas de negocio con repositorio en memoria, endpoints con JWT simulado (`dependency_overrides`), la clave interna, y **concurrencia real** (`test_inventario_concurrencia.py`). Usan una SQLite temporal; con `TEST_DATABASE_URL` puedes correrlos contra MariaDB.
 
 ---
 
 ## ▶️ Cómo correrlo localmente
 
 ```bash
+cp .env.example .env     # completa AZURE_TENANT_ID, AZURE_CLIENT_ID e INTERNAL_API_KEY
 pip install -r requirements.txt
 uvicorn app.main:app --reload
 ```
@@ -64,12 +73,12 @@ Luego `http://localhost:8000/docs` para el Swagger.
 
 ```bash
 docker build -t ms-inventario .
-docker run --env-file .env -p 8080:8080 ms-inventario
+docker run --env-file .env -p 8003:8000 ms-inventario
 ```
-Puerto **8080**, igual que `ms-catalogo`, alineado al Security Group `sg-backend` de `infra/terraform/etapa_2`.
+El contenedor escucha en el **8000**; docker compose y Terraform lo publican en el 8003.
 
 ---
 
-## 🐳 Próxima etapa
+## 🔗 Quién lo llama
 
-Cuando `ms-pedidos` cree un pedido, debe llamar a `POST /inventario/{sku}/reservar` antes de confirmar la compra, y a `confirmar-salida` cuando el pago sea aprobado por `ms-pagos`.
+`ms-pedidos` reserva al crear un pedido, libera al cancelarlo y confirma la salida cuando un ADMIN lo confirma (ver el README de `ms-pedidos`).

@@ -1,0 +1,10 @@
+# Copia este archivo a terraform.tfvars (esta ignorado por git) y completa los valores.
+# vpc_id y los subnet_id salen de los "terraform output" de la Etapa 1.
+aws_account_id    = "123456789012"
+vpc_id            = "vpc-xxxxxxxxxxxxxxxxx"
+public_subnet_id  = "subnet-xxxxxxxxxxxxxxxxx"
+private_subnet_id = "subnet-yyyyyyyyyyyyyyyyy"
+azure_tenant_id   = "00000000-0000-0000-0000-000000000000"
+azure_client_id   = "00000000-0000-0000-0000-000000000000"
+db_password       = "usa-un-valor-largo-y-aleatorio"
+internal_api_key  = "usa-otro-valor-largo-y-aleatorio"
