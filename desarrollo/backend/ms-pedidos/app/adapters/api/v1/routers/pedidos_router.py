@@ -12,7 +12,7 @@ from app.schemas.schema_pedido import CrearPedidoSchema, PedidoResponseSchema
 from app.infrastructure.repositories.pedido_repository import PedidoRepository
 from app.infrastructure.clients.inventario_client import InventarioHttpClient
 from app.infrastructure.clients.catalogo_client import CatalogoHttpClient
-from app.infrastructure.messaging.rabbitmq_publisher import obtener_event_publisher
+from app.infrastructure.messaging.event_publishers import obtener_event_publisher
 from app.domain.services.pedido_service import (
     PedidoService,
     PedidoNoEncontradoError,
@@ -43,7 +43,7 @@ def get_service(
         PedidoRepository(db),
         InventarioHttpClient(token=token),
         CatalogoHttpClient(token=token),
-        obtener_event_publisher(),  # eventos a RabbitMQ (nulo si RABBITMQ_ENABLED=false)
+        obtener_event_publisher(),  # eventos a RabbitMQ y/o Kafka (nulo si ambos estan apagados)
     )
 
 

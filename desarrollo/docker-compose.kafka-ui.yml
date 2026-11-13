@@ -1,0 +1,31 @@
+# Kafka-UI: consola web para administrar y monitorear el cluster (brokers, topicos, particiones,
+# mensajes, consumer groups, offsets y lag).
+#
+#   docker network create pidealtoke-net          (una sola vez; lo comparten todos los compose)
+#   docker compose -f docker-compose.kafka-ui.yml up -d      -> http://localhost:8090
+#
+# Requiere que el cluster (docker-compose.kafka.yml) este arriba: se conecta por el listener INTERNAL.
+# Por defecto solo escucha en 127.0.0.1 y pide usuario/clave (LOGIN_FORM): sin auth cualquiera con
+# acceso al puerto podria BORRAR topicos. En la nube define KAFKA_UI_BIND=0.0.0.0, cambia la clave y
+# restringe el puerto con el security group.
+
+services:
+  kafka-ui:
+    image: provectuslabs/kafka-ui:v0.7.2
+    container_name: pidealtoke-kafka-ui
+    restart: unless-stopped
+    ports:
+      - "${KAFKA_UI_BIND:-127.0.0.1}:${PORT_KAFKA_UI:-8090}:8080"
+    environment:
+      DYNAMIC_CONFIG_ENABLED: "false"
+      KAFKA_CLUSTERS_0_NAME: pidealtoke
+      KAFKA_CLUSTERS_0_BOOTSTRAPSERVERS: kafka1:29092,kafka2:29092,kafka3:29092
+      KAFKA_CLUSTERS_0_PROPERTIES_REQUEST_TIMEOUT_MS: "10000"
+      AUTH_TYPE: LOGIN_FORM
+      SPRING_SECURITY_USER_NAME: ${KAFKA_UI_USER:-admin}
+      SPRING_SECURITY_USER_PASSWORD: ${KAFKA_UI_PASSWORD:-admin123}
+
+networks:
+  default:
+    name: pidealtoke-net
+    external: true

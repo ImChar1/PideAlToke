@@ -1,12 +1,24 @@
 # Variables de conexion a RabbitMQ compartidas por ms-pedidos (productor), ms-inventario (consumidor)
 # y ms-mensajeria (administrador). Se inyectan con `<<: *rabbitmq-env` en cada servicio.
 # Los nombres de exchanges/colas NO van aqui: viven en el config.py de cada servicio.
+# El broker de RabbitMQ (cluster de 2 nodos) y el cluster de Kafka NO viven en este archivo: se levantan
+# con docker-compose.rabbitmq.yml / docker-compose.kafka.yml / docker-compose.kafka-ui.yml y se comunican
+# con estos servicios por la red externa `pidealtoke-net` (ver README, o simplemente ./levantar-todo.sh).
+# Los microservicios reintentan la conexion, asi que el orden de arranque no es critico.
+#
+# Variables de conexion a RabbitMQ compartidas por ms-pedidos (productor), ms-inventario (productor de
+# alertas y consumidor), ms-notificaciones (consumidor) y ms-mensajeria (administrador).
 x-rabbitmq-env: &rabbitmq-env
   RABBITMQ_ENABLED: "true"
-  RABBITMQ_HOST: rabbitmq          # nombre del servicio en la red de compose
+  RABBITMQ_HOST: rabbitmq          # nodo 1 del cluster (alias en la red pidealtoke-net)
   RABBITMQ_PORT: "5672"
   RABBITMQ_USER: ${RABBITMQ_USER:-admin}
   RABBITMQ_PASSWORD: ${RABBITMQ_PASSWORD:-admin123}
+
+# Conexion a Kafka: listeners INTERNAL de los 3 brokers (basta con que viva uno para descubrir el resto).
+x-kafka-env: &kafka-env
+  KAFKA_ENABLED: "true"
+  KAFKA_BOOTSTRAP_SERVERS: kafka1:29092,kafka2:29092,kafka3:29092
 
 services:
   db:
@@ -32,30 +44,6 @@ services:
       timeout: 5s
       retries: 10
       start_period: 20s
-
-  rabbitmq:
-    image: rabbitmq:3.12-management-alpine
-    container_name: pidealtoke-rabbitmq
-    # Hostname fijo: RabbitMQ guarda sus datos bajo el nombre del nodo (derivado del hostname).
-    # Sin esto, al recrear el contenedor el nodo cambia y "desaparecen" colas y mensajes del volumen.
-    hostname: pidealtoke-rabbitmq
-    restart: always
-    environment:
-      RABBITMQ_DEFAULT_USER: ${RABBITMQ_USER:-admin}
-      RABBITMQ_DEFAULT_PASS: ${RABBITMQ_PASSWORD:-admin123}
-    # Solo en loopback: las credenciales por defecto (admin/admin123) son de desarrollo y no
-    # deben quedar expuestas a la red. Entre contenedores se usa rabbitmq:5672 por la red de compose.
-    ports:
-      - "127.0.0.1:${PORT_RABBITMQ:-5672}:5672"          # AMQP
-      - "127.0.0.1:${PORT_RABBITMQ_UI:-15672}:15672"     # Management UI
-    volumes:
-      - rabbitmq_data:/var/lib/rabbitmq
-    healthcheck:
-      test: ["CMD", "rabbitmq-diagnostics", "-q", "ping"]
-      interval: 10s
-      timeout: 10s
-      retries: 10
-      start_period: 30s
 
   ms-usuarios:
     build: ./backend/ms-usuarios
@@ -93,12 +81,13 @@ services:
       AZURE_TENANT_ID: ${AZURE_TENANT_ID}
       AZURE_CLIENT_ID: ${AZURE_CLIENT_ID}
       INTERNAL_API_KEY: ${INTERNAL_API_KEY}
-      <<: *rabbitmq-env
+      <<: [*rabbitmq-env, *kafka-env]
     depends_on:
       db:
         condition: service_healthy
-      rabbitmq:
-        condition: service_healthy
+      # Publica alertas en `pidealtoke.alertas`; la cola `alertas.stock` la declara ms-notificaciones.
+      ms-notificaciones:
+        condition: service_started
 
   ms-pedidos:
     build: ./backend/ms-pedidos
@@ -112,11 +101,9 @@ services:
       INVENTARIO_SERVICE_URL: http://ms-inventario:8000
       CATALOGO_SERVICE_URL: http://ms-catalogo:8000
       INTERNAL_API_KEY: ${INTERNAL_API_KEY}
-      <<: *rabbitmq-env
+      <<: [*rabbitmq-env, *kafka-env]
     depends_on:
       db:
-        condition: service_healthy
-      rabbitmq:
         condition: service_healthy
       ms-inventario:
         condition: service_started
@@ -134,9 +121,41 @@ services:
       AZURE_TENANT_ID: ${AZURE_TENANT_ID}
       AZURE_CLIENT_ID: ${AZURE_CLIENT_ID}
       <<: *rabbitmq-env
-    depends_on:
-      rabbitmq:
-        condition: service_healthy
+
+  # Administrador de Kafka (topicos, configuraciones, consumer groups y lag). JWT + rol ADMIN.
+  # Igual que ms-mensajeria: uso operativo, NO se enruta por el gateway.
+  ms-kafka-admin:
+    build: ./backend/ms-kafka-admin
+    container_name: ms-kafka-admin
+    ports:
+      - "${PORT_MS_KAFKA_ADMIN:-8006}:8000"
+    environment:
+      AZURE_TENANT_ID: ${AZURE_TENANT_ID}
+      AZURE_CLIENT_ID: ${AZURE_CLIENT_ID}
+      KAFKA_BOOTSTRAP_SERVERS: kafka1:29092,kafka2:29092,kafka3:29092
+
+  # Analitica en tiempo real: CONSUME pedidos.eventos y inventario.movimientos de Kafka
+  # (dos consumer groups: analitica-ventas y alertas-stock). Estado en memoria, reconstruido desde el log.
+  ms-analitica:
+    build: ./backend/ms-analitica
+    container_name: ms-analitica
+    ports:
+      - "${PORT_MS_ANALITICA:-8007}:8000"
+    environment:
+      AZURE_TENANT_ID: ${AZURE_TENANT_ID}
+      AZURE_CLIENT_ID: ${AZURE_CLIENT_ID}
+      <<: *kafka-env
+
+  # Notificaciones: CONSUME 2 colas de RabbitMQ (notificaciones.pedidos y alertas.stock), cada una con su DLQ.
+  ms-notificaciones:
+    build: ./backend/ms-notificaciones
+    container_name: ms-notificaciones
+    ports:
+      - "${PORT_MS_NOTIFICACIONES:-8008}:8000"
+    environment:
+      AZURE_TENANT_ID: ${AZURE_TENANT_ID}
+      AZURE_CLIENT_ID: ${AZURE_CLIENT_ID}
+      <<: *rabbitmq-env
 
   gateway:
     image: nginx:alpine
@@ -150,6 +169,8 @@ services:
       - ms-catalogo
       - ms-inventario
       - ms-pedidos
+      - ms-analitica
+      - ms-notificaciones
 
   frontend:
     build:
@@ -164,4 +185,10 @@ services:
 
 volumes:
   mariadb_data:
-  rabbitmq_data:
+
+# Red compartida con docker-compose.rabbitmq.yml / .kafka.yml / .kafka-ui.yml. Se crea UNA vez:
+#   docker network create pidealtoke-net      (levantar-todo.sh lo hace solo)
+networks:
+  default:
+    name: pidealtoke-net
+    external: true

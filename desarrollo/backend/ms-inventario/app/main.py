@@ -7,6 +7,7 @@ from app.infrastructure.db.session import Base, engine
 from app.adapters.api.v1.routers import inventario_router
 from app.adapters.messaging.pedido_eventos_handler import manejar_evento_pedido
 from app.infrastructure.messaging.rabbitmq_consumer import ConsumerConfig, ConsumerManager
+from app.infrastructure.messaging.movimiento_publishers import cerrar_movimiento_publisher
 
 # Crear las tablas en la db si no existen para desarrollo local
 Base.metadata.create_all(bind=engine)
@@ -22,6 +23,8 @@ async def lifespan(_app: FastAPI):
     yield
     if consumidores is not None:
         consumidores.detener()
+    # Cierra de forma limpia los productores de movimientos (Kafka hace flush de lo pendiente).
+    cerrar_movimiento_publisher()
 
 
 app = FastAPI(title="Microservicio de Inventario - PideAltoke", lifespan=lifespan)

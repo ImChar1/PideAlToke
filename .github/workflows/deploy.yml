@@ -17,7 +17,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        servicio: [ms-usuarios, ms-catalogo, ms-inventario, ms-pedidos]
+        servicio: [ms-usuarios, ms-catalogo, ms-inventario, ms-pedidos, ms-mensajeria, ms-kafka-admin, ms-analitica, ms-notificaciones]
     defaults:
       run:
         working-directory: desarrollo/backend/${{ matrix.servicio }}
@@ -126,11 +126,16 @@ jobs:
           TF_VAR_ecr_backend_repo: ${{ secrets.ECR_BACKEND_REPO }}
           TF_VAR_db_password: ${{ secrets.DB_PASSWORD }}
           TF_VAR_internal_api_key: ${{ secrets.INTERNAL_API_KEY }}
+          TF_VAR_rabbitmq_password: ${{ secrets.RABBITMQ_PASSWORD }}
+          TF_VAR_rabbitmq_erlang_cookie: ${{ secrets.RABBITMQ_ERLANG_COOKIE }}
+          TF_VAR_kafka_ui_password: ${{ secrets.KAFKA_UI_PASSWORD }}
         run: |
           terraform init
           terraform apply -auto-approve
           echo "API_GATEWAY_ENDPOINT=$(terraform output -raw api_gateway_endpoint)" >> $GITHUB_ENV
           echo "FRONTEND_PUBLIC_IP=$(terraform output -raw frontend_public_ip)" >> $GITHUB_ENV
+          echo "RABBITMQ_UI_URL=$(terraform output -raw rabbitmq_ui_url)" >> $GITHUB_ENV
+          echo "KAFKA_UI_URL=$(terraform output -raw kafka_ui_url)" >> $GITHUB_ENV
 
       # --- CONSTRUCCIÓN Y DESPLIEGUE DOCKER ---
       - name: Autenticar en Amazon ECR
@@ -158,6 +163,18 @@ jobs:
 
           docker build -t $ECR_REGISTRY/$ECR_REPOSITORY:ms-pedidos ./desarrollo/backend/ms-pedidos
           docker push $ECR_REGISTRY/$ECR_REPOSITORY:ms-pedidos
+
+          docker build -t $ECR_REGISTRY/$ECR_REPOSITORY:ms-mensajeria ./desarrollo/backend/ms-mensajeria
+          docker push $ECR_REGISTRY/$ECR_REPOSITORY:ms-mensajeria
+
+          docker build -t $ECR_REGISTRY/$ECR_REPOSITORY:ms-kafka-admin ./desarrollo/backend/ms-kafka-admin
+          docker push $ECR_REGISTRY/$ECR_REPOSITORY:ms-kafka-admin
+
+          docker build -t $ECR_REGISTRY/$ECR_REPOSITORY:ms-analitica ./desarrollo/backend/ms-analitica
+          docker push $ECR_REGISTRY/$ECR_REPOSITORY:ms-analitica
+
+          docker build -t $ECR_REGISTRY/$ECR_REPOSITORY:ms-notificaciones ./desarrollo/backend/ms-notificaciones
+          docker push $ECR_REGISTRY/$ECR_REPOSITORY:ms-notificaciones
 
       - name: Subir Frontend a ECR
         env:
@@ -202,7 +219,10 @@ jobs:
         run: |
           echo "### 🚀 ¡Despliegue Integrado Exitoso!" >> $GITHUB_STEP_SUMMARY
           echo "**🌐 Enlace Frontend:** http://${{ env.FRONTEND_PUBLIC_IP }}" >> $GITHUB_STEP_SUMMARY
-          echo "**🔗 API Gateway Endpoint:** ${{ env.API_GATEWAY_ENDPOINT }}" >> $GITHUB_STEP_SUMMARY 
+          echo "**🔗 API Gateway Endpoint:** ${{ env.API_GATEWAY_ENDPOINT }}" >> $GITHUB_STEP_SUMMARY
+          echo "**🐇 RabbitMQ (consola):** ${{ env.RABBITMQ_UI_URL }}" >> $GITHUB_STEP_SUMMARY
+          echo "**📈 Kafka-UI:** ${{ env.KAFKA_UI_URL }}" >> $GITHUB_STEP_SUMMARY
+          echo "_La EC2 de mensajeria tarda unos minutos extra en levantar los clusters tras el despliegue (log: /var/log/mensajeria-setup.log)._" >> $GITHUB_STEP_SUMMARY
 
       # --- LIMPIEZA SI ALGO FALLA ---
       # Estos pasos van AL FINAL del job para cubrir cualquier fallo (tambien subir imagenes o SSM).
@@ -224,6 +244,9 @@ jobs:
           TF_VAR_ecr_backend_repo: ${{ secrets.ECR_BACKEND_REPO }}
           TF_VAR_db_password: ${{ secrets.DB_PASSWORD }}
           TF_VAR_internal_api_key: ${{ secrets.INTERNAL_API_KEY }}
+          TF_VAR_rabbitmq_password: ${{ secrets.RABBITMQ_PASSWORD }}
+          TF_VAR_rabbitmq_erlang_cookie: ${{ secrets.RABBITMQ_ERLANG_COOKIE }}
+          TF_VAR_kafka_ui_password: ${{ secrets.KAFKA_UI_PASSWORD }}
         run: terraform destroy -auto-approve
 
       - name: Limpiar Etapa 1 si falla

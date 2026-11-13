@@ -1,0 +1,146 @@
+<div class="analitica-page">
+
+  <div class="header">
+    <div class="header-title">
+      <h2>Analítica en tiempo real</h2>
+      @if (enVivo() && esAdmin) { <span class="live"><span class="dot"></span> en vivo</span> }
+    </div>
+    @if (esAdmin) {
+      <div class="header-actions">
+        @if (actualizadoEn()) {
+          <span class="actualizado">Actualizado {{ actualizadoEn() | date: 'HH:mm:ss' }}</span>
+        }
+        <button class="btn-sec" (click)="toggleEnVivo()">{{ enVivo() ? 'Pausar' : 'Reanudar' }}</button>
+        <button class="btn-sec" (click)="refrescar()">Actualizar</button>
+      </div>
+    }
+  </div>
+
+  @if (!esAdmin) {
+    <div class="aviso aviso--rol">
+      Esta vista es solo para cuentas con el rol <strong>ADMIN</strong> asignado en Azure AD.
+    </div>
+  } @else {
+
+    @if (error()) {
+      <div class="aviso aviso--error">{{ error() }}</div>
+    }
+
+    @if (cargando()) {
+      <p class="estado">Cargando...</p>
+    } @else if (resumen()) {
+
+      <!-- Ventas: viene de Kafka (topico pedidos.eventos, grupo analitica-ventas) -->
+      <section class="tarjetas">
+        <div class="tarjeta">
+          <span class="tarjeta-etiqueta">Ingresos confirmados</span>
+          <span class="tarjeta-valor">${{ resumen()!.ingresos_confirmados | number: '1.0-0' }}</span>
+        </div>
+        <div class="tarjeta">
+          <span class="tarjeta-etiqueta">Ticket promedio</span>
+          <span class="tarjeta-valor">${{ resumen()!.ticket_promedio | number: '1.0-0' }}</span>
+        </div>
+        <div class="tarjeta">
+          <span class="tarjeta-etiqueta">Pedidos pendientes</span>
+          <span class="tarjeta-valor">{{ resumen()!.pedidos_pendientes }}</span>
+        </div>
+        <div class="tarjeta">
+          <span class="tarjeta-etiqueta">Confirmados / cancelados</span>
+          <span class="tarjeta-valor">{{ resumen()!.pedidos_confirmados }} / {{ resumen()!.pedidos_cancelados }}</span>
+        </div>
+      </section>
+
+      <div class="grid-2">
+        <section class="panel">
+          <h3>Ventas por hora (UTC)</h3>
+          @if (barras().length === 0) {
+            <p class="vacio">Aún no hay ventas confirmadas.</p>
+          } @else {
+            <div class="barras">
+              @for (b of barras(); track b.hora) {
+                <div class="barra-col" [title]="b.pedidos + ' pedido(s) · $' + (b.ingresos | number: '1.0-0')">
+                  <div class="barra" [style.height.%]="b.altura"></div>
+                  <span class="barra-hora">{{ horaCorta(b.hora) }}</span>
+                </div>
+              }
+            </div>
+          }
+        </section>
+
+        <section class="panel">
+          <h3>Productos más vendidos</h3>
+          @if (top().length === 0) {
+            <p class="vacio">Aún no hay ventas confirmadas.</p>
+          } @else {
+            <table>
+              <thead><tr><th>SKU</th><th class="num">Unidades</th><th class="num">Ingresos</th></tr></thead>
+              <tbody>
+                @for (p of top(); track p.sku) {
+                  <tr><td>{{ p.sku }}</td><td class="num">{{ p.unidades_vendidas }}</td><td class="num">${{ p.ingresos | number: '1.0-0' }}</td></tr>
+                }
+              </tbody>
+            </table>
+          }
+        </section>
+      </div>
+
+      <!-- Stock: viene de Kafka (topico inventario.movimientos, grupo alertas-stock) -->
+      <div class="grid-2">
+        <section class="panel">
+          <h3>Stock según los movimientos
+            @if (stockBajo().length > 0) { <span class="chip chip--warn">{{ stockBajo().length }} bajo umbral</span> }
+          </h3>
+          @if (stock().length === 0) {
+            <p class="vacio">Aún no hay movimientos de stock.</p>
+          } @else {
+            <table>
+              <thead><tr><th>SKU</th><th class="num">Disponible</th><th class="num">Reservado</th><th class="num">Umbral</th></tr></thead>
+              <tbody>
+                @for (s of stock(); track s.sku) {
+                  <tr [class.fila-alerta]="s.bajo_umbral">
+                    <td>{{ s.sku }}</td>
+                    <td class="num">{{ s.stock_disponible }}</td>
+                    <td class="num">{{ s.stock_reservado }}</td>
+                    <td class="num">{{ s.umbral_minimo ?? '—' }}</td>
+                  </tr>
+                }
+              </tbody>
+            </table>
+          }
+        </section>
+
+        <!-- Notificaciones: vienen de RabbitMQ (colas notificaciones.pedidos y alertas.stock) -->
+        <section class="panel">
+          <h3>Notificaciones <span class="origen">RabbitMQ</span></h3>
+          @if (notificaciones().length === 0) {
+            <p class="vacio">Aún no hay notificaciones.</p>
+          } @else {
+            <ul class="notificaciones">
+              @for (n of notificaciones(); track n.id) {
+                <li [class]="'notif notif--' + n.tipo">
+                  <div class="notif-cabecera">
+                    <strong>{{ etiquetaTipo(n.tipo) }}</strong>
+                    <span class="notif-hora">{{ n.creada_en | date: 'HH:mm:ss' }}</span>
+                  </div>
+                  <span>{{ n.mensaje }}</span>
+                </li>
+              }
+            </ul>
+          }
+        </section>
+      </div>
+
+      <!-- Salud del consumo -->
+      @if (metricas(); as m) {
+        <section class="panel panel--metricas">
+          <h3>Salud del consumo Kafka</h3>
+          <div class="metricas">
+            <span><strong>{{ totalConsumidos() }}</strong> mensajes aplicados</span>
+            <span [class.metrica-mala]="totalDescartados() > 0"><strong>{{ totalDescartados() }}</strong> descartados (inválidos o fallidos)</span>
+            <span><strong>{{ alertas().length }}</strong> alertas de stock registradas</span>
+          </div>
+        </section>
+      }
+    }
+  }
+</div>

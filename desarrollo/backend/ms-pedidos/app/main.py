@@ -4,7 +4,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from app.infrastructure.db.session import Base, engine
 from app.adapters.api.v1.routers import pedidos_router
-from app.infrastructure.messaging.rabbitmq_publisher import cerrar_event_publisher
+from app.infrastructure.messaging.event_publishers import cerrar_event_publisher
 
 # Crear las tablas en la db si no existen para desarrollo local
 Base.metadata.create_all(bind=engine)

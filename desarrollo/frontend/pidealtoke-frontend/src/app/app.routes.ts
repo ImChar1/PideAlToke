@@ -16,6 +16,7 @@ export const routes: Routes = [
       { path: 'dashboard', component: DashboardComponent },
       { path: 'catalogo', loadComponent: () => import('./features/catalogo/catalogo.component').then(m => m.CatalogoComponent) },
       { path: 'inventario', loadComponent: () => import('./features/inventario/inventario.component').then(m => m.InventarioComponent) },
+      { path: 'analitica', loadComponent: () => import('./features/analitica/analitica.component').then(m => m.AnaliticaComponent) },
       { path: 'pedidos', loadComponent: () => import('./features/pedidos/pedidos.component').then(m => m.PedidosComponent) },
       { path: '', redirectTo: 'dashboard', pathMatch: 'full' }
     ]

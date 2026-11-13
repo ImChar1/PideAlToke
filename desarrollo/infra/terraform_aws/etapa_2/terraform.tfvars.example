@@ -8,3 +8,10 @@ azure_tenant_id   = "00000000-0000-0000-0000-000000000000"
 azure_client_id   = "00000000-0000-0000-0000-000000000000"
 db_password       = "usa-un-valor-largo-y-aleatorio"
 internal_api_key  = "usa-otro-valor-largo-y-aleatorio"
+
+# --- Mensajeria (solo letras y numeros, minimo 12; genera con: openssl rand -hex 16) ---
+rabbitmq_password      = "genera-con-openssl-rand-hex-16"
+rabbitmq_erlang_cookie = "genera-con-openssl-rand-hex-16"
+kafka_ui_password      = "genera-con-openssl-rand-hex-16"
+# Opcionales (tienen default): messaging_instance_type = "t3.large", backend_instance_type = "t3.small",
+# messaging_admin_cidr = "0.0.0.0/0" (pon tu IP/32 para cerrar las consolas web)

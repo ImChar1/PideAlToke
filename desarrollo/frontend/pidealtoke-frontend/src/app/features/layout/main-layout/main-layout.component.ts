@@ -22,6 +22,11 @@ export class MainLayoutComponent implements OnInit {
     this.userName = account?.name || 'Usuario';
   }
 
+  // La analitica es solo para ADMIN (el backend responde 403 al resto): el link no se muestra a los demas.
+  get esAdmin(): boolean {
+    return this.authService.isAdmin();
+  }
+
   get iniciales(): string {
     return this.userName
       .split(' ')

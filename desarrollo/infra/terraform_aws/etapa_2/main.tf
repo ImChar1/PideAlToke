@@ -78,6 +78,16 @@ resource "aws_security_group" "sg_backend" {
     cidr_blocks = ["0.0.0.0/0"]
   }
 
+  # ms-analitica (8007) y ms-notificaciones (8008): los consume el dashboard por el API Gateway.
+  # 8005 (ms-mensajeria) y 8006 (ms-kafka-admin) quedan CERRADOS a proposito: son administrativos
+  # (se usan por SSM port-forward o desde la propia instancia).
+  ingress {
+    from_port   = 8007
+    to_port     = 8008
+    protocol    = "tcp"
+    cidr_blocks = ["0.0.0.0/0"]
+  }
+
   egress {
     from_port   = 0
     to_port     = 0
@@ -136,11 +146,15 @@ EOF
 
 resource "aws_instance" "ec2_backend" {
   ami                         = data.aws_ami.amazon_linux_2023.id
-  instance_type               = "t2.micro"
+  instance_type               = var.backend_instance_type   # 8 contenedores: una t2.micro (1 GB) no alcanza
   subnet_id                   = var.public_subnet_id
   associate_public_ip_address = true
   vpc_security_group_ids      = [aws_security_group.sg_backend.id]
   iam_instance_profile = "LabInstanceProfile"
+
+  # cloud-init solo corre una vez por instancia: si cambia el compose (servicios nuevos, brokers), hay
+  # que reemplazarla o el cambio no se aplica nunca.
+  user_data_replace_on_change = true
 
   tags = {
     Name = "backend-ec2"
@@ -162,6 +176,18 @@ resource "aws_instance" "ec2_backend" {
 
     cat << 'DC_EOF' > /home/ec2-user/docker-compose.yml
     version: '3.8'
+
+    # Brokers en la EC2 de mensajeria (IP privada): RabbitMQ (AMQP 5672) y los 3 brokers de Kafka.
+    x-rabbit-env: &rabbit-env
+      RABBITMQ_ENABLED: "true"
+      RABBITMQ_HOST: ${aws_instance.ec2_mensajeria.private_ip}
+      RABBITMQ_PORT: "5672"
+      RABBITMQ_USER: ${var.rabbitmq_user}
+      RABBITMQ_PASSWORD: ${var.rabbitmq_password}
+
+    x-kafka-env: &kafka-env
+      KAFKA_ENABLED: "true"
+      KAFKA_BOOTSTRAP_SERVERS: ${aws_instance.ec2_mensajeria.private_ip}:9092,${aws_instance.ec2_mensajeria.private_ip}:9093,${aws_instance.ec2_mensajeria.private_ip}:9094
 
     services:
       ms-usuarios:
@@ -193,6 +219,9 @@ resource "aws_instance" "ec2_backend" {
           AZURE_TENANT_ID: ${var.azure_tenant_id}
           AZURE_CLIENT_ID: ${var.azure_client_id}
           INTERNAL_API_KEY: ${var.internal_api_key}
+          <<: [*rabbit-env, *kafka-env]
+        depends_on:
+          - ms-notificaciones
         restart: always
 
       ms-pedidos:
@@ -206,9 +235,52 @@ resource "aws_instance" "ec2_backend" {
           INVENTARIO_SERVICE_URL: http://ms-inventario:8000
           CATALOGO_SERVICE_URL: http://ms-catalogo:8000
           INTERNAL_API_KEY: ${var.internal_api_key}
+          <<: [*rabbit-env, *kafka-env]
         depends_on:
           - ms-inventario
           - ms-catalogo
+        restart: always
+
+      # Administradores (8005 / 8006): sus puertos NO estan abiertos en el security group.
+      ms-mensajeria:
+        image: ${var.aws_account_id}.dkr.ecr.${var.aws_region}.amazonaws.com/${var.ecr_backend_repo}:ms-mensajeria
+        ports:
+          - "8005:8000"
+        environment:
+          AZURE_TENANT_ID: ${var.azure_tenant_id}
+          AZURE_CLIENT_ID: ${var.azure_client_id}
+          <<: *rabbit-env
+        restart: always
+
+      ms-kafka-admin:
+        image: ${var.aws_account_id}.dkr.ecr.${var.aws_region}.amazonaws.com/${var.ecr_backend_repo}:ms-kafka-admin
+        ports:
+          - "8006:8000"
+        environment:
+          AZURE_TENANT_ID: ${var.azure_tenant_id}
+          AZURE_CLIENT_ID: ${var.azure_client_id}
+          KAFKA_BOOTSTRAP_SERVERS: ${aws_instance.ec2_mensajeria.private_ip}:9092,${aws_instance.ec2_mensajeria.private_ip}:9093,${aws_instance.ec2_mensajeria.private_ip}:9094
+        restart: always
+
+      # Consumidores: analitica (Kafka, UNA sola replica: su estado vive en memoria) y notificaciones (RabbitMQ).
+      ms-analitica:
+        image: ${var.aws_account_id}.dkr.ecr.${var.aws_region}.amazonaws.com/${var.ecr_backend_repo}:ms-analitica
+        ports:
+          - "8007:8000"
+        environment:
+          AZURE_TENANT_ID: ${var.azure_tenant_id}
+          AZURE_CLIENT_ID: ${var.azure_client_id}
+          <<: *kafka-env
+        restart: always
+
+      ms-notificaciones:
+        image: ${var.aws_account_id}.dkr.ecr.${var.aws_region}.amazonaws.com/${var.ecr_backend_repo}:ms-notificaciones
+        ports:
+          - "8008:8000"
+        environment:
+          AZURE_TENANT_ID: ${var.azure_tenant_id}
+          AZURE_CLIENT_ID: ${var.azure_client_id}
+          <<: *rabbit-env
         restart: always
     DC_EOF
 

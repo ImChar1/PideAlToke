@@ -6,9 +6,17 @@
 # se LIBERA la reserva; si el pedido se confirma/paga, se CONFIRMA LA SALIDA
 # (ahi si se descuenta cantidad_disponible en firme).
 
-from typing import List
+import logging
+from typing import List, Optional
 
 from app.domain.ports.inventario_repository_port import InventarioRepositoryPort
+from app.domain.ports.movimiento_publisher_port import (
+    MovimientoEventPublisherPort,
+    NullMovimientoPublisher,
+)
+from app.schemas.schema_eventos_movimiento import EventoMovimientoStock
+
+logger = logging.getLogger(__name__)
 
 
 class InventarioNoEncontradoError(Exception):
@@ -28,8 +36,42 @@ class CantidadInvalidaError(Exception):
 
 
 class InventarioService:
-    def __init__(self, repository: InventarioRepositoryPort):
+    def __init__(
+        self,
+        repository: InventarioRepositoryPort,
+        movimiento_publisher: Optional[MovimientoEventPublisherPort] = None,
+    ):
         self.repository = repository
+        # Opcional: sin publicador (tests, Kafka/RabbitMQ apagados) no se emite ningun evento.
+        self.movimiento_publisher = movimiento_publisher or NullMovimientoPublisher()
+
+    def _emitir(self, tipo: str, registro, cantidad: int) -> None:
+        """
+        Publica el movimiento ya persistido. NUNCA lanza: el stock ya cambio en la base y un broker
+        caido no puede romper (ni revertir) la operacion. Si el movimiento deja el stock cruzando el
+        umbral minimo, ademas se emite UNA alerta `stock_bajo`.
+        """
+        try:
+            self.movimiento_publisher.publicar(EventoMovimientoStock.desde_registro(tipo, registro, cantidad))
+            if self._cruzo_umbral(tipo, registro, cantidad):
+                self.movimiento_publisher.publicar(EventoMovimientoStock.desde_registro("stock_bajo", registro, 0))
+        except Exception:
+            logger.exception(
+                "No se pudo publicar el movimiento '%s' del SKU %s (la operacion se completo igual)",
+                tipo, getattr(registro, "sku", None),
+            )
+
+    @staticmethod
+    def _cruzo_umbral(tipo: str, registro, cantidad: int) -> bool:
+        """
+        True si ESTE movimiento hizo pasar cantidad_disponible de "sobre el umbral" a "en o bajo el umbral"
+        (misma definicion de "bajo umbral" que el listado ?bajo_umbral=true). Solo una salida en firme
+        baja cantidad_disponible; se alerta al cruzar, no en cada movimiento posterior (sin spam).
+        """
+        if tipo != "confirmado" or registro.umbral_minimo is None:
+            return False
+        antes = registro.cantidad_disponible + cantidad
+        return antes > registro.umbral_minimo >= registro.cantidad_disponible
 
     def crear_inventario(self, datos: dict):
         if self.repository.obtener_por_sku(datos["sku"]):
@@ -62,6 +104,7 @@ class InventarioService:
             raise StockInsuficienteError(
                 f"Stock insuficiente para '{sku}': disponible={vendible}, solicitado={cantidad}"
             )
+        self._emitir("reservado", resultado, cantidad)
         return resultado
 
     def liberar_stock(self, sku: str, cantidad: int):
@@ -72,6 +115,7 @@ class InventarioService:
         resultado = self.repository.liberar_reserva(sku, cantidad)
         if resultado is None:
             raise InventarioNoEncontradoError(f"No hay inventario para el SKU '{sku}'")
+        self._emitir("liberado", resultado, cantidad)
         return resultado
 
     def confirmar_salida(self, sku: str, cantidad: int):
@@ -91,6 +135,7 @@ class InventarioService:
                 f"No se puede confirmar salida de {cantidad} unidades para '{sku}': "
                 f"solo hay {registro.cantidad_reservada} reservadas"
             )
+        self._emitir("confirmado", resultado, cantidad)
         return resultado
 
     def reponer_stock(self, sku: str, cantidad: int):
@@ -100,6 +145,7 @@ class InventarioService:
         resultado = self.repository.ajustar_cantidades(sku, delta_disponible=cantidad, delta_reservada=0)
         if resultado is None:
             raise InventarioNoEncontradoError(f"No hay inventario para el SKU '{sku}'")
+        self._emitir("repuesto", resultado, cantidad)
         return resultado
 
     def actualizar_umbral(self, sku: str, umbral_minimo: int):

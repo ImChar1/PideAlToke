@@ -13,3 +13,5 @@ os.environ.setdefault("AZURE_CLIENT_ID", "test-client")
 os.environ["INTERNAL_API_KEY"] = "clave-interna-de-test"
 # Los tests nunca deben publicar en un RabbitMQ real aunque haya un .env con RABBITMQ_ENABLED=true.
 os.environ["RABBITMQ_ENABLED"] = "false"
+# Igual con Kafka: los tests nunca publican en un cluster real.
+os.environ["KAFKA_ENABLED"] = "false"

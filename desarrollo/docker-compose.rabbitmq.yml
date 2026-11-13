@@ -1,0 +1,106 @@
+# Clúster de RabbitMQ de 2 nodos (rabbit1 + rabbit2) con colas espejadas.
+#
+#   docker network create pidealtoke-net          (una sola vez; lo comparten todos los compose)
+#   docker compose -f docker-compose.rabbitmq.yml up -d
+#
+# - El servicio del nodo 1 se llama `rabbitmq` a proposito: los microservicios ya apuntan a
+#   RABBITMQ_HOST=rabbitmq, asi que no hay que tocar su configuracion.
+# - `rabbitmq-setup` (one-shot) aplica la politica de espejado: toda cola cuyo nombre empiece con
+#   inventario. / notificaciones. / alertas. (colas de trabajo y DLQ) se replica en los 2 nodos y
+#   sobrevive a la caida de uno. Las DLQ tambien: un mensaje fallido no se pierde si cae un nodo.
+# - Consola web: nodo 1 en :15672 y nodo 2 en :15673 (pestana "Overview > Nodes" muestra el cluster).
+#   Por defecto solo en 127.0.0.1; en la nube define RABBITMQ_UI_BIND=0.0.0.0 y restringe el
+#   puerto con el security group.
+
+x-rabbit-comun: &rabbit-comun
+  image: rabbitmq:3.12-management-alpine
+  restart: unless-stopped
+  environment: &rabbit-env
+    # Todos los nodos de un cluster DEBEN compartir la misma cookie de Erlang.
+    RABBITMQ_ERLANG_COOKIE: ${RABBITMQ_ERLANG_COOKIE:-pidealtoke-cookie-cambiar-en-produccion}
+    RABBITMQ_DEFAULT_USER: ${RABBITMQ_USER:-admin}
+    RABBITMQ_DEFAULT_PASS: ${RABBITMQ_PASSWORD:-admin123}
+  healthcheck:
+    test: ["CMD", "rabbitmq-diagnostics", "-q", "ping"]
+    interval: 10s
+    timeout: 10s
+    retries: 10
+    start_period: 30s
+
+services:
+  rabbitmq:   # nodo 1
+    <<: *rabbit-comun
+    container_name: pidealtoke-rabbit1
+    hostname: rabbit1      # fijo: RabbitMQ guarda sus datos bajo el nombre del nodo
+    environment:
+      <<: *rabbit-env
+      RABBITMQ_NODENAME: rabbit@rabbit1
+    ports:
+      - "${RABBITMQ_AMQP_BIND:-127.0.0.1}:${PORT_RABBITMQ:-5672}:5672"        # AMQP
+      - "${RABBITMQ_UI_BIND:-127.0.0.1}:${PORT_RABBITMQ_UI:-15672}:15672"     # consola web
+    volumes:
+      - rabbit1_data:/var/lib/rabbitmq
+      - ./infra/rabbitmq/rabbitmq.conf:/etc/rabbitmq/conf.d/20-cluster.conf:ro
+    networks:
+      default:
+        aliases: [rabbit1]
+
+  rabbitmq2:  # nodo 2
+    <<: *rabbit-comun
+    container_name: pidealtoke-rabbit2
+    hostname: rabbit2
+    environment:
+      <<: *rabbit-env
+      RABBITMQ_NODENAME: rabbit@rabbit2
+    ports:
+      - "${RABBITMQ_AMQP_BIND:-127.0.0.1}:${PORT_RABBITMQ_2:-5673}:5672"
+      - "${RABBITMQ_UI_BIND:-127.0.0.1}:${PORT_RABBITMQ_UI_2:-15673}:15672"
+    volumes:
+      - rabbit2_data:/var/lib/rabbitmq
+      - ./infra/rabbitmq/rabbitmq.conf:/etc/rabbitmq/conf.d/20-cluster.conf:ro
+    networks:
+      default:
+        aliases: [rabbit2]
+
+  rabbitmq-setup:
+    image: rabbitmq:3.12-management-alpine
+    container_name: pidealtoke-rabbit-setup
+    restart: "no"
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+      rabbitmq2:
+        condition: service_healthy
+    environment:
+      RABBITMQ_ERLANG_COOKIE: ${RABBITMQ_ERLANG_COOKIE:-pidealtoke-cookie-cambiar-en-produccion}
+    entrypoint: ["/bin/sh", "-c"]
+    command:
+      - |
+        set -e
+        # El entrypoint original (que escribe la cookie) se reemplaza al usar /bin/sh: se escribe a mano.
+        printf '%s' "$$RABBITMQ_ERLANG_COOKIE" > "$$HOME/.erlang.cookie"
+        chmod 600 "$$HOME/.erlang.cookie"
+        echo "Esperando a que los 2 nodos formen el cluster..."
+        for i in $$(seq 1 30); do
+          if rabbitmqctl -n rabbit@rabbit1 cluster_status 2>/dev/null | grep -A6 "Running Nodes" | grep -q "rabbit@rabbit2"; then
+            break
+          fi
+          sleep 2
+        done
+        rabbitmqctl -n rabbit@rabbit1 cluster_status
+        rabbitmqctl -n rabbit@rabbit1 set_policy ha-pidealtoke \
+          "^(inventario|notificaciones|alertas)\\." \
+          '{"ha-mode":"all","ha-sync-mode":"automatic"}' \
+          --priority 0 --apply-to queues
+        echo "Politica de espejado aplicada."
+    networks:
+      - default
+
+volumes:
+  rabbit1_data:
+  rabbit2_data:
+
+networks:
+  default:
+    name: pidealtoke-net
+    external: true

@@ -1,3 +1,4 @@
+from pydantic import Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 class Settings(BaseSettings):
@@ -47,6 +48,21 @@ class Settings(BaseSettings):
     RABBITMQ_RK_PEDIDO_CONFIRMADO: str = "pedido.confirmado"
     RABBITMQ_RK_PEDIDO_CANCELADO: str = "pedido.cancelado"
 
+    # --- Kafka: ms-pedidos es PRODUCTOR del topico `pedidos.eventos` (streaming / analitica) ---
+    # Convive con RabbitMQ: RabbitMQ sigue repartiendo trabajo (reservas de stock con ACK y DLQ) y
+    # Kafka guarda el historial de eventos para que otros servicios lo lean/relean (ms-analitica).
+    # Apagado por defecto: sin cluster (tests, `uvicorn` local) el servicio funciona igual.
+    KAFKA_ENABLED: bool = False
+    KAFKA_BOOTSTRAP_SERVERS: str = "localhost:9092"          # lista separada por comas
+    KAFKA_TOPIC_PEDIDOS: str = "pedidos.eventos"             # key = pedido_id (orden por pedido)
+    KAFKA_CLIENT_ID: str = "ms-pedidos"
+    KAFKA_ACKS: str = "all"                                  # el write se confirma con las ISR completas
+    KAFKA_ENABLE_IDEMPOTENCE: bool = True                    # sin duplicados por reintentos del productor
+    KAFKA_COMPRESSION: str = "lz4"
+    KAFKA_LINGER_MS: int = Field(5, ge=0)                    # espera para agrupar mensajes en un batch
+    KAFKA_DELIVERY_TIMEOUT_MS: int = Field(15000, ge=1000)   # tope total (con reintentos) por mensaje
+    KAFKA_FLUSH_TIMEOUT_SECONDS: float = Field(5.0, gt=0)    # al apagar: espera a los pendientes
+
     model_config = SettingsConfigDict(env_file=".env", extra="ignore")
 
 settings = Settings()
@@ -65,3 +81,6 @@ if settings.RABBITMQ_ENABLED and not (settings.RABBITMQ_USER and settings.RABBIT
     raise RuntimeError(
         "Configuracion incompleta: RABBITMQ_ENABLED=true requiere RABBITMQ_USER y RABBITMQ_PASSWORD."
     )
+
+if settings.KAFKA_ENABLED and not settings.KAFKA_BOOTSTRAP_SERVERS.strip():
+    raise RuntimeError("Configuracion incompleta: KAFKA_ENABLED=true requiere KAFKA_BOOTSTRAP_SERVERS.")

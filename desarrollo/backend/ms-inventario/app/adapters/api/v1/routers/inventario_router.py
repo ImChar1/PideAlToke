@@ -22,13 +22,15 @@ from app.schemas.schema_inventario import (
     InventarioResponseSchema,
 )
 from app.core.security import validar_jwt, requerir_rol, requerir_clave_interna
+from app.infrastructure.messaging.movimiento_publishers import obtener_movimiento_publisher
 
 router = APIRouter(prefix="/inventario", tags=["Inventario"])
 
 
 def get_service(db: Session = Depends(get_db)) -> InventarioService:
     repository = InventarioRepository(db)
-    return InventarioService(repository)
+    # El publicador es nulo si Kafka y RabbitMQ estan apagados: el servicio no cambia en tests/local.
+    return InventarioService(repository, obtener_movimiento_publisher())
 
 
 def _manejar_errores_dominio(func):
