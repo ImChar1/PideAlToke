@@ -48,6 +48,20 @@ class Settings(BaseSettings):
     RABBITMQ_RK_PEDIDO_CONFIRMADO: str = "pedido.confirmado"
     RABBITMQ_RK_PEDIDO_CANCELADO: str = "pedido.cancelado"
 
+    # --- RabbitMQ: ms-pedidos tambien es CONSUMIDOR de sus eventos (seguimiento asincrono) ---
+    # Cola propia + DLQ, ligada al exchange `pedidos.events` con el patron `pedido.*`. Se levanta
+    # solo si RABBITMQ_ENABLED=true (igual que el publicador); sin broker no se toca nada.
+    RABBITMQ_EXCHANGE_DLX: str = "pidealtoke.dlx"                 # DIRECT: recibe los mensajes rechazados
+    RABBITMQ_QUEUE_SEGUIMIENTO: str = "pedidos.seguimiento"
+    RABBITMQ_QUEUE_SEGUIMIENTO_DLQ: str = "pedidos.seguimiento.dlq"
+    RABBITMQ_BINDING_SEGUIMIENTO: str = "pedido.*"
+    RABBITMQ_CONSUMER_PREFETCH: int = Field(10, ge=1)            # mensajes sin ACK permitidos por consumidor
+    RABBITMQ_CONSUMER_CONCURRENCY: int = Field(1, ge=1, le=32)   # hilos consumidores
+    RABBITMQ_MAX_RETRIES: int = Field(3, ge=0)                   # reintentos DESPUES del primer intento
+    RABBITMQ_RETRY_BASE_SECONDS: float = Field(1.0, gt=0)        # espera = base * 2^(intento-1) ...
+    RABBITMQ_RETRY_MAX_SECONDS: float = Field(30.0, gt=0)        # ... con este tope
+    RABBITMQ_RECONNECT_MAX_SECONDS: float = Field(30.0, gt=0)    # tope del backoff al reconectar
+
     # --- Kafka: ms-pedidos es PRODUCTOR del topico `pedidos.eventos` (streaming / analitica) ---
     # Convive con RabbitMQ: RabbitMQ sigue repartiendo trabajo (reservas de stock con ACK y DLQ) y
     # Kafka guarda el historial de eventos para que otros servicios lo lean/relean (ms-analitica).

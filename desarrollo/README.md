@@ -219,12 +219,13 @@ Los dos brokers conviven y **cada uno hace lo que mejor sabe hacer**; Kafka se s
 | Cola (DLQ = `<cola>.dlq`) | Exchange (tipo) | Routing key | Productor → Consumidor |
 |---|---|---|---|
 | `inventario.pedidos` | `pedidos.events` (TOPIC) | `pedido.*` | `ms-pedidos` → `ms-inventario` |
+| `pedidos.seguimiento` | `pedidos.events` (TOPIC) | `pedido.*` | `ms-pedidos` → `ms-pedidos` (seguimiento asíncrono; DLQ `pedidos.seguimiento.dlq`) |
 | `notificaciones.pedidos` | `pedidos.events` (TOPIC) | `pedido.confirmado`, `pedido.cancelado` | `ms-pedidos` → `ms-notificaciones` |
 | `alertas.stock` | `pidealtoke.alertas` (DIRECT) | `stock.bajo` | `ms-inventario` → `ms-notificaciones` |
 
 | Servicio | Rol |
 |---|---|
-| `ms-pedidos` | **Productor.** Publica `pedido.creado/confirmado/cancelado` en `pedidos.events` con *Publisher Confirms*. Mejor esfuerzo: un broker caído no rompe el pedido. |
+| `ms-pedidos` | **Productor.** Publica `pedido.creado/confirmado/cancelado` en `pedidos.events` con *Publisher Confirms*. Mejor esfuerzo: un broker caído no rompe el pedido. También es **consumidor** de `pedidos.seguimiento` (ACK manual, reintentos con backoff, DLQ, descarte de duplicados por `event_id`; hoy registra el evento para su seguimiento asíncrono). |
 | `ms-inventario` | **Consumidor** de `inventario.pedidos` (ACK manual, reintentos con backoff, DLQ; hoy solo registra el evento) y **productor** de la alerta `stock.bajo` cuando una salida deja el stock en o bajo `umbral_minimo` (solo al *cruzar* el umbral, sin repetir). |
 | `ms-notificaciones` | **Consumidor** de `notificaciones.pedidos` y `alertas.stock` (un manager por cola, handlers separados por dominio). Genera la notificación (hoy: log + `GET /api/v1/notificaciones`), descarta duplicados por `event_id`, y manda payloads inválidos a la DLQ. |
 | `ms-mensajeria` | **Administrador** REST de colas, exchanges y bindings (`/api/rabbitmq/...`, rol `ADMIN`). |
@@ -254,3 +255,10 @@ Ambos con `cleanup.policy=delete` y `min.insync.replicas=2`; productores con `ac
 
 Sin `KAFKA_ENABLED=true` (valor por defecto fuera de compose) los servicios no tocan el cluster.
 
+
+
+## Documentación adicional
+
+- `docs/MIGRACION-AWS-EC2.md`: qué corre en cada EC2 y cómo desplegar con Terraform desde Git Bash.
+- `docs/COMO-OBTENER-VALORES.md`: de dónde sale cada secreto o valor que falta, paso a paso.
+- `docs/RABBITMQ-COLAS-Y-TRELLO.md`: mapa real de colas y qué corregir en el tablero.
